@@ -93,25 +93,62 @@ class BuildingProcessor:
         # Address information
         building.address = self._extract_address(data)
         
-        # Spatial data
+        # Spatial data - handle both direct lat/lng and geometry objects
+        if data.get('latitude') and data.get('longitude'):
+            building.latitude = self._safe_float(data.get('latitude'))
+            building.longitude = self._safe_float(data.get('longitude'))
+        
+        # Handle geometry object or footprint data
         geometry = data.get('geometry') or data.get('the_geom')
+        footprint_coords = data.get('footprint')
+        
         if geometry:
-            building.latitude, building.longitude, footprint = self._extract_spatial_data(geometry)
-            building.footprint = footprint
+            lat, lng, footprint = self._extract_spatial_data(geometry)
+            if lat and lng and not building.latitude:
+                building.latitude = lat
+                building.longitude = lng
+            if footprint:
+                building.footprint = footprint
+        elif footprint_coords:
+            # Handle direct footprint coordinates
+            building.footprint = footprint_coords
         
         # Building characteristics
         building.height = self._safe_float(data.get('height') or data.get('max_height'))
-        building.floors = self._safe_int(data.get('floors') or data.get('num_floors'))
-        building.building_type = self._normalize_building_type(data.get('building_type') or data.get('use_type'))
+        
+        # Handle floors from data or estimate from height
+        floors = data.get('floors') or data.get('num_floors')
+        if floors:
+            building.floors = self._safe_int(floors)
+        elif building.height:
+            # Estimate floors from height (3.5m per floor average)
+            building.floors = max(1, int(building.height / 3.5))
+        
+        # Building type and use
+        building_type = (data.get('building_type') or 
+                        data.get('building_use') or 
+                        data.get('use_type') or
+                        data.get('land_use'))
+        building.building_type = self._normalize_building_type(building_type)
         
         # Zoning and assessment
-        building.zoning = data.get('zoning') or data.get('zone_class')
-        building.assessed_value = self._safe_float(data.get('assessed_value') or data.get('total_assessed_value'))
-        building.land_use = data.get('land_use') or data.get('use_description')
+        building.zoning = (data.get('zoning') or 
+                          data.get('zone_class') or
+                          data.get('zone_code'))
+        building.assessed_value = self._safe_float(data.get('assessed_value') or 
+                                                  data.get('total_assessed_value'))
+        building.land_use = (data.get('land_use') or 
+                            data.get('use_description') or
+                            building.building_type)
         
         # Additional metadata
-        building.construction_year = self._safe_int(data.get('construction_year') or data.get('year_built'))
+        building.construction_year = self._safe_int(data.get('construction_year') or 
+                                                   data.get('year_built'))
         building.last_updated = datetime.utcnow()
+        
+        # Store data source for tracking
+        if hasattr(building, '_data_source'):
+            building._data_source = data.get('data_source', 'unknown')
     
     def _extract_address(self, data: Dict) -> str:
         """Extract and format address from building data"""

@@ -1,22 +1,26 @@
-# Urban Design 3D City Dashboard with LLM Querying
+# Urban Design 3D City Dashboard with Calgary Open Data Integration
 
-A full-stack web application that visualizes Calgary building data in 3D and allows users to query buildings using natural language, powered by LLM integration.
+A full-stack web application that visualizes Calgary building data in 3D using real Calgary Open Data APIs and allows users to query buildings using natural language, powered by LLM integration.
 
 ## 🌟 Features
 
 ### Core Functionality
-- **3D Building Visualization**: Interactive Three.js-based 3D city view of Calgary buildings
+- **Real Calgary Open Data**: Direct integration with Calgary's Open Data APIs
+- **3D Building Visualization**: Interactive Three.js-based 3D city view with actual building heights
+- **Multiple Data Sources**: Building footprints, 3D buildings, zoning, and property assessments
 - **Natural Language Queries**: Ask questions like "buildings over 100 feet" or "commercial buildings"
 - **Smart Building Filtering**: LLM-powered query interpretation with fallback rule-based parsing
-- **Interactive Building Details**: Click any building to see detailed information
+- **Interactive Building Details**: Click any building to see detailed information including assessed value
+- **Value-Based Visualization**: Buildings colored by assessed value or building type
 - **Project Persistence**: Save and load your map analyses for future reference
 
-### Technical Highlights
-- **Full-Stack Architecture**: Flask backend with React frontend
-- **Real-time Data**: Fetches building data from Calgary Open Data API
-- **3D Rendering**: Buildings rendered as extruded shapes based on actual footprint data
-- **User Management**: Simple username-based identification system
-- **Responsive Design**: Modern UI with glassmorphism design elements
+### Calgary Open Data Integration
+- **Building Roof Outlines** (Dataset: `uc4c-6kbd`): Detailed building footprints
+- **3D Buildings** (Dataset: `cchr-krqg`): Buildings with height information  
+- **Land-Use Districts** (Dataset: `qe6k-p9nh`): Zoning information
+- **Property Assessments** (Dataset: `4bsw-nn7w`): Current year assessed values
+- **Real-time Data**: Fetches fresh data from Calgary's Socrata API
+- **Intelligent Fallback**: Graceful degradation to sample data when APIs are unavailable
 
 ## 🏗️ Architecture
 
@@ -52,6 +56,7 @@ frontend/
 - Python 3.8+ 
 - Node.js 16+
 - npm or yarn
+- (Optional) Socrata App Token for higher API rate limits
 
 ### 1. Clone and Setup Backend
 
@@ -68,9 +73,27 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Copy environment template and configure
-cp .env.example .env
-# Edit .env file with your settings (see Configuration section)
+# Create environment configuration
+# Create .env file with the following content:
+```
+
+**Backend .env file:**
+```env
+# Flask Configuration
+FLASK_CONFIG=development
+SECRET_KEY=your-secret-key-here
+DATABASE_URL=sqlite:///urban_dashboard.db
+
+# Calgary Open Data API Configuration
+# Get your free app token at: https://dev.socrata.com/register
+# This is optional but recommended for higher rate limits (1000 requests/hour vs 100)
+SOCRATA_APP_TOKEN=your-socrata-app-token-here
+
+# LLM Configuration (Optional)
+HUGGINGFACE_API_KEY=your-huggingface-api-key-here
+
+# Development settings
+PORT=5001
 ```
 
 ### 2. Setup Frontend
@@ -101,6 +124,16 @@ The application will be available at:
 
 ## ⚙️ Configuration
 
+### Calgary Open Data API Setup
+
+The application integrates with Calgary's Open Data portal using the Socrata API:
+
+1. **No API Key Required**: Basic functionality works without any keys
+2. **Optional App Token**: Get higher rate limits (1000 vs 100 requests/hour)
+   - Sign up at [Socrata Developer Portal](https://dev.socrata.com/register)
+   - Create an app to get your token
+   - Add `SOCRATA_APP_TOKEN=your-token` to your `.env` file
+
 ### Environment Variables (.env)
 
 Create a `.env` file in the backend directory:
@@ -113,237 +146,250 @@ SECRET_KEY=your-secret-key-here
 # Database
 DATABASE_URL=sqlite:///urban_dashboard.db
 
+# Calgary Open Data API Configuration
+SOCRATA_APP_TOKEN=your-socrata-app-token-here  # Optional but recommended
+
 # Hugging Face LLM API (Optional - fallback parsing will be used without it)
 HUGGINGFACE_API_KEY=your-huggingface-api-key-here
-
-# Calgary Open Data API (No key required)
-CALGARY_OPEN_DATA_BASE_URL=https://data.calgary.ca/resource
 
 # CORS Configuration
 CORS_ORIGINS=http://localhost:3000,https://localhost:3000
 ```
 
-### Getting Hugging Face API Key (Optional)
-
-1. Sign up at [huggingface.co](https://huggingface.co)
-2. Go to Settings → Access Tokens
-3. Create a new token
-4. Add it to your `.env` file
-
-**Note**: The application works without the Hugging Face API key using rule-based query parsing.
-
 ## 📊 Data Sources
 
-### Calgary Open Data
-The application fetches building data from Calgary's Open Data portal:
-- **Building Footprints**: Geometric shapes of buildings
-- **Property Assessments**: Building values and characteristics
-- **Zoning Data**: Land use classifications
+### Calgary Open Data APIs
 
-### Sample Data
-When the Calgary API is unavailable, the application uses sample data representing downtown Calgary buildings.
+The application uses four main Calgary Open Data datasets:
+
+#### 1. Building Roof Outlines (`uc4c-6kbd`)
+- **URL**: `https://data.calgary.ca/resource/uc4c-6kbd.geojson`
+- **Contains**: Detailed building footprint polygons
+- **Usage**: Building shapes and outlines
+
+#### 2. 3D Buildings Citywide (`cchr-krqg`) 
+- **URL**: `https://data.calgary.ca/resource/cchr-krqg.geojson`
+- **Contains**: Building footprints with height attributes
+- **Usage**: 3D building visualization with accurate heights
+
+#### 3. Land-Use Districts (`qe6k-p9nh`)
+- **URL**: `https://data.calgary.ca/resource/qe6k-p9nh.geojson` 
+- **Contains**: Zoning classifications and land use districts
+- **Usage**: Zoning-based building categorization
+
+#### 4. Current-Year Property Assessments (`4bsw-nn7w`)
+- **URL**: `https://data.calgary.ca/resource/4bsw-nn7w.json`
+- **Contains**: Property assessed values, zoning, use classifications
+- **Usage**: Value-based building visualization and filtering
+
+### Data Processing Features
+- **Spatial Filtering**: Query buildings within specific geographic bounds
+- **Data Combination**: Automatically merges data from multiple sources
+- **Error Handling**: Graceful fallback to sample data when APIs are unavailable
+- **Caching**: Intelligent caching to reduce API calls
 
 ## 🎮 How to Use
 
-### 1. User Login
-- Enter any username to identify yourself
-- No password required for this demo
+### 1. Data Source Selection
+Choose your preferred data source from the header dropdown:
+- **Combined (Recommended)**: Uses 3D buildings + footprints + zoning data
+- **3D Buildings Only**: Height-accurate buildings from the 3D dataset
+- **Building Footprints**: Basic building outlines
 
 ### 2. Explore Buildings
 - **Navigate**: Drag to rotate, scroll to zoom, right-click to pan
-- **Select Buildings**: Click any building to see details
-- **Building Colors**: Different types have different colors:
-  - 🔵 Blue: Commercial
-  - 🟢 Green: Residential  
-  - 🟣 Purple: Industrial
-  - 🟠 Orange: Mixed Use
-  - ⚪ Gray: Unknown/Other
+- **Select Buildings**: Click any building to see details including assessed value
+- **Building Colors**: 
+  - **Value-Based** (when assessment data available):
+    - 🔴 Red: Very high value (>$5M)
+    - 🟠 Orange: High value ($2-5M)
+    - 🟡 Yellow: Medium-high value ($1-2M)
+    - 🟢 Light Green: Medium value ($500k-1M)
+    - 🔵 Blue: Lower value (<$500k)
+  - **Type-Based** (fallback):
+    - 🔵 Blue: Commercial
+    - 🟢 Green: Residential  
+    - 🟣 Purple: Industrial
+    - 🟠 Orange: Mixed Use
+    - ⚪ Gray: Unknown/Other
 
-### 3. Query Buildings
-Use natural language to filter buildings:
+### 3. Test Calgary Open Data APIs
+Use the header buttons to test API connectivity:
+- **Test 3D API**: Verifies connection to 3D buildings dataset
+- **Test Assessments**: Checks property assessment data availability
 
-**Height Queries:**
+### 4. Query Buildings
+Enhanced natural language queries with Calgary data:
+
+**Height Queries** (using real building heights):
 - "buildings over 100 feet"
 - "buildings taller than 50 meters"
-- "buildings under 200 feet"
+- "tallest buildings in the area"
 
-**Type Queries:**
-- "commercial buildings"
-- "residential buildings" 
-- "mixed use buildings"
-
-**Value Queries:**
+**Value Queries** (using assessment data):
 - "buildings worth more than $1,000,000"
-- "buildings valued under $500,000"
+- "most expensive buildings"
+- "properties under $500,000"
 
-**Zoning Queries:**
-- "RC-G zoning"
-- "CC-X buildings"
+**Zoning Queries** (using Calgary zoning codes):
+- "RC-G zoning" (Residential - Grade-Oriented Infill)
+- "CC-X buildings" (Centre City)
+- "commercial zoned properties"
 
-### 4. Save & Load Projects
-- Apply filters to buildings
-- Click "Projects" → "Save Current Analysis"
-- Give your project a name and description
-- Load saved projects anytime to restore filters
+## 🔧 Enhanced API Endpoints
 
-## 🔧 API Endpoints
+### Calgary Open Data Specific
+- `GET /api/buildings/3d?bounds=lat1,lng1,lat2,lng2&limit=500` - Get 3D buildings with height data
+- `GET /api/buildings/zoning?bounds=lat1,lng1,lat2,lng2&limit=1000` - Get zoning information
+- `GET /api/buildings/assessments?parcel_ids=id1,id2&limit=1000` - Get property assessments
 
-### Building Data
+### Enhanced Building Data
+- `GET /api/buildings/area?bounds=lat1,lng1,lat2,lng2&source=combined&refresh=false` - Get buildings with data source selection
+  - `source`: `combined`, `3d`, `footprints`
+  - `refresh`: Force fresh API call vs cached data
+
+### Original Endpoints (Enhanced)
 - `GET /api/buildings/area?bounds=lat1,lng1,lat2,lng2` - Get buildings in area
 - `GET /api/buildings/{id}` - Get building details
 - `POST /api/buildings/filter` - Filter buildings
 - `POST /api/buildings/refresh` - Refresh data from Calgary API
 
-### LLM Query Processing
-- `POST /api/query/process` - Process natural language query
-- `GET /api/query/suggestions` - Get query examples
-- `POST /api/query/validate` - Validate filter format
+## 🌐 Example API Usage
 
-### Project Management
-- `POST /api/projects/save` - Save project
-- `GET /api/projects/user/{user_id}` - Get user projects
-- `POST /api/projects/{id}/load` - Load project
-- `DELETE /api/projects/{id}` - Delete project
+### Fetch 3D Buildings in Downtown Calgary
+```bash
+curl "http://localhost:5001/api/buildings/3d?bounds=51.042,-114.075,51.048,-114.065&limit=100"
+```
 
-### User Management
-- `POST /api/users/login` - User login/registration
-- `GET /api/users/{id}` - Get user info
+### Get Zoning Data for Area
+```bash
+curl "http://localhost:5001/api/buildings/zoning?bounds=51.042,-114.075,51.048,-114.065"
+```
+
+### Combined Data with Different Sources
+```bash
+# Get combined 3D + footprint data
+curl "http://localhost:5001/api/buildings/area?bounds=51.042,-114.075,51.048,-114.065&source=combined&refresh=true"
+
+# Get only 3D buildings
+curl "http://localhost:5001/api/buildings/area?bounds=51.042,-114.075,51.048,-114.065&source=3d"
+```
+
+## 🎯 Calgary-Specific Features
+
+### Geographic Bounds
+- **Default Area**: Downtown Calgary (approximately 3-4 blocks)
+- **Coordinates**: 51.042°N to 51.048°N, -114.075°W to -114.065°W
+- **Customizable**: Modify bounds in the frontend to explore different areas
+
+### Building Types (Calgary-Specific)
+The application recognizes Calgary's building classification system:
+- Commercial office buildings
+- Residential condominiums and apartments  
+- Mixed-use developments
+- Industrial facilities
+- Institutional buildings
+
+### Zoning Integration
+Supports Calgary's zoning codes:
+- **R-C1 to R-C2**: Residential contexts
+- **CC-X**: Centre City District
+- **M-CG**: Mixed use commercial/residential
+- **I-**: Industrial districts
+
+### Assessment Data
+- Current year property assessments
+- Land and building values
+- Property use classifications
+- Assessment methodology alignment with Calgary practices
 
 ## 🚀 Deployment
 
-### Backend Deployment (Heroku)
+### Environment Variables for Production
 
-1. Create `Procfile`:
-```
-web: gunicorn run:app
-```
-
-2. Deploy:
-```bash
-heroku create your-app-name
-heroku config:set FLASK_CONFIG=production
-heroku config:set SECRET_KEY=your-production-secret
-# Add other environment variables
-git push heroku main
+**Backend (.env for production):**
+```env
+FLASK_CONFIG=production
+SECRET_KEY=your-secure-production-secret
+DATABASE_URL=postgresql://user:pass@host:port/db  # For production database
+SOCRATA_APP_TOKEN=your-production-socrata-token
+HUGGINGFACE_API_KEY=your-production-hf-key  # Optional
 ```
 
-### Frontend Deployment (Vercel)
-
-1. Add build script to `package.json`:
-```json
-{
-  "scripts": {
-    "build": "react-scripts build"
-  }
-}
-```
-
-2. Set environment variable:
-```bash
-REACT_APP_API_URL=https://your-backend-app.herokuapp.com/api
-```
-
-3. Deploy to Vercel:
-```bash
-npm install -g vercel
-vercel --prod
-```
-
-## 🧪 Testing
-
-### Backend Tests
-```bash
-cd backend
-python -m pytest tests/
-```
-
-### Frontend Tests
-```bash
-cd frontend
-npm test
+**Frontend (Vercel/Netlify environment variables):**
+```env
+REACT_APP_API_URL=https://your-backend-domain.com/api
 ```
 
 ## 🛠️ Development
 
-### Code Structure
-- **Models**: SQLAlchemy models with relationships
-- **Services**: Business logic separated from routes
-- **Error Handling**: Comprehensive error handling with user-friendly messages
-- **Type Safety**: Type hints in Python, PropTypes in React
-- **Code Quality**: ESLint, Prettier, and Python formatting
+### Testing Calgary Open Data Integration
 
-### Adding New Features
+1. **Test API Connectivity**:
+```bash
+# Test 3D buildings endpoint
+curl "https://data.calgary.ca/resource/cchr-krqg.geojson?$limit=5"
 
-1. **New Query Types**: Add patterns to `LLMService._fallback_query_parsing()`
-2. **New Building Properties**: Add fields to `Building` model and update processors
-3. **New Visualizations**: Extend `Building.js` component in Three.js
-4. **New Data Sources**: Add fetchers in `DataFetcher` service
+# Test building footprints
+curl "https://data.calgary.ca/resource/uc4c-6kbd.geojson?$limit=5"
+```
 
-## 📋 System Requirements
+2. **Verify Data Processing**:
+```python
+# In Python shell
+from app.services.data_fetcher import DataFetcher
+fetcher = DataFetcher()
+buildings = fetcher.fetch_3d_buildings(bounds=(51.042, -114.075, 51.048, -114.065), limit=10)
+print(f"Fetched {len(buildings)} buildings")
+```
 
-### Minimum
-- Python 3.8+
-- Node.js 16+
-- 4GB RAM
-- Modern browser with WebGL support
+### Adding New Data Sources
 
-### Recommended
-- Python 3.10+
-- Node.js 18+
-- 8GB RAM
-- Chrome/Firefox/Safari latest versions
+1. **Add new fetcher method** in `DataFetcher`:
+```python
+def fetch_new_dataset(self, bounds=None, limit=1000):
+    url = f"{self.base_url}/your-dataset-id.geojson"
+    # Implementation
+```
 
-## 🤝 Contributing
+2. **Update building processor** to handle new data format
+3. **Add new API endpoint** in routes
+4. **Update frontend** to use new data
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+## 🤝 Calgary Open Data Attribution
 
-## 📄 License
+This application uses data from the City of Calgary's Open Data portal:
+- **Source**: [data.calgary.ca](https://data.calgary.ca)
+- **License**: Open Government License - Calgary
+- **Attribution**: City of Calgary Open Data
+- **Last Updated**: Data is fetched in real-time from Calgary APIs
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-**3D Scene Not Loading**
-- Check browser WebGL support
-- Update graphics drivers
-- Try in a different browser
-
-**API Errors**
-- Check backend is running on port 5000
-- Verify environment variables
-- Check Calgary Open Data API status
-
-**Slow Performance**
-- Reduce building count by narrowing geographic bounds
-- Close other browser tabs
-- Check system resources
-
-### Support
-For issues and questions:
-1. Check the troubleshooting section
-2. Review API documentation
-3. Open an issue on GitHub
+For questions about the data itself, please contact the City of Calgary Open Data team.
 
 ## 🎯 Roadmap
 
+### Calgary-Specific Enhancements
+- [ ] Historical building data trends
+- [ ] Development permit integration
+- [ ] Building permit tracking
+- [ ] Demographic data overlay
+- [ ] Transit accessibility analysis
+- [ ] Climate and energy efficiency data
+
 ### Short Term
-- [ ] Real-time collaboration features
-- [ ] Additional data sources (Vancouver, Toronto)
-- [ ] Enhanced mobile support
-- [ ] Performance optimizations
+- [ ] Additional Calgary datasets (parking, permits, etc.)
+- [ ] Enhanced spatial analysis tools
+- [ ] Performance optimizations for large datasets
+- [ ] Mobile-responsive 3D controls
 
 ### Long Term
-- [ ] Machine learning for building type prediction
-- [ ] Virtual reality support
-- [ ] Advanced spatial analysis tools
-- [ ] Integration with urban planning software
+- [ ] Other Canadian cities integration (Vancouver, Toronto)
+- [ ] Machine learning for property value prediction
+- [ ] Advanced urban planning analytics
+- [ ] Integration with GTFS transit data
 
 ---
 
-**Built with ❤️ for urban design and data visualization** 
+**Built with ❤️ for Calgary and urban data visualization**
+
+*Using real data from Calgary's Open Data initiative to create meaningful urban insights.* 

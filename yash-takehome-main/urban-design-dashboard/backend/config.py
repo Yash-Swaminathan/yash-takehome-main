@@ -13,8 +13,9 @@ class Config:
     HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY')
     HUGGINGFACE_API_URL = 'https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium'
     
-    # Calgary Open Data API
+    # Calgary Open Data API Configuration
     CALGARY_OPEN_DATA_BASE_URL = 'https://data.calgary.ca/resource'
+    SOCRATA_APP_TOKEN = os.environ.get('SOCRATA_APP_TOKEN')  # Optional but recommended for higher rate limits
     
     # CORS Configuration
     CORS_ORIGINS = ['http://localhost:3000', 'https://localhost:3000']

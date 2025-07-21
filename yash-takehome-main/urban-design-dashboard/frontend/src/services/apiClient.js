@@ -64,9 +64,9 @@ export const apiService = {
     getUser: (userId) => apiClient.get(`/users/${userId}`),
 
     // Building data
-    getBuildingsInArea: (bounds, refresh = false) => {
+    getBuildingsInArea: (bounds, refresh = false, source = 'combined') => {
         const boundsStr = bounds.join(',');
-        return apiClient.get(`/buildings/area?bounds=${boundsStr}&refresh=${refresh}`);
+        return apiClient.get(`/buildings/area?bounds=${boundsStr}&refresh=${refresh}&source=${source}`);
     },
     getBuildingDetails: (buildingId) => apiClient.get(`/buildings/${buildingId}`),
     filterBuildings: (filters, bounds) => apiClient.post('/buildings/filter', { filters, bounds }),
@@ -74,6 +74,26 @@ export const apiService = {
     getBuildingStatistics: (bounds) => {
         const boundsStr = bounds ? bounds.join(',') : '';
         return apiClient.get(`/buildings/statistics${boundsStr ? `?bounds=${boundsStr}` : ''}`);
+    },
+
+    // Calgary Open Data specific endpoints
+    get3DBuildings: (bounds, limit = 500) => {
+        const params = new URLSearchParams();
+        if (bounds) params.append('bounds', bounds.join(','));
+        if (limit) params.append('limit', limit);
+        return apiClient.get(`/buildings/3d?${params.toString()}`);
+    },
+    getZoningData: (bounds, limit = 1000) => {
+        const params = new URLSearchParams();
+        if (bounds) params.append('bounds', bounds.join(','));
+        if (limit) params.append('limit', limit);
+        return apiClient.get(`/buildings/zoning?${params.toString()}`);
+    },
+    getPropertyAssessments: (parcelIds = null, limit = 1000) => {
+        const params = new URLSearchParams();
+        if (parcelIds && parcelIds.length > 0) params.append('parcel_ids', parcelIds.join(','));
+        if (limit) params.append('limit', limit);
+        return apiClient.get(`/buildings/assessments?${params.toString()}`);
     },
 
     // LLM query processing
