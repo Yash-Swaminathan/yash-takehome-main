@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from app.services.data_fetcher import DataFetcher
 from app.services.building_processor import BuildingProcessor
 from app.models.building import Building
@@ -308,14 +308,14 @@ def get_building_statistics():
 
 @buildings_bp.route('/debug/calgary-fields', methods=['GET'])
 def debug_calgary_fields():
-    """Debug endpoint to see what fields are available in Calgary Open Data APIs using v3 format"""
+    """Debug endpoint to see what fields are available in Calgary Open Data APIs using SODA format"""
     try:
         fetcher = DataFetcher()
         debug_info = {}
         
-        # Test 3D Buildings API with v3 format
+        # Test 3D Buildings API with SODA format
         try:
-            url = f"{fetcher.base_url}/cchr-krqg/query.json"
+            url = f"{fetcher.base_url}/cchr-krqg.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -326,7 +326,8 @@ def debug_calgary_fields():
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
                         'sample_record': data[0],
-                        'api_url': url
+                        'api_url': url,
+                        'record_count': len(data)
                     }
                 else:
                     debug_info['3d_buildings'] = {'status': 'no_data', 'api_url': url}
@@ -339,9 +340,9 @@ def debug_calgary_fields():
         except Exception as e:
             debug_info['3d_buildings'] = {'status': 'exception', 'error': str(e)}
         
-        # Test Building Footprints API with v3 format
+        # Test Building Footprints API with SODA format
         try:
-            url = f"{fetcher.base_url}/uc4c-6kbd/query.json"
+            url = f"{fetcher.base_url}/uc4c-6kbd.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -352,7 +353,8 @@ def debug_calgary_fields():
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
                         'sample_record': data[0],
-                        'api_url': url
+                        'api_url': url,
+                        'record_count': len(data)
                     }
                 else:
                     debug_info['building_footprints'] = {'status': 'no_data', 'api_url': url}
@@ -365,9 +367,9 @@ def debug_calgary_fields():
         except Exception as e:
             debug_info['building_footprints'] = {'status': 'exception', 'error': str(e)}
         
-        # Test Property Assessments API with v3 format
+        # Test Property Assessments API with SODA format
         try:
-            url = f"{fetcher.base_url}/4bsw-nn7w/query.json"
+            url = f"{fetcher.base_url}/4bsw-nn7w.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -378,7 +380,8 @@ def debug_calgary_fields():
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
                         'sample_record': data[0],
-                        'api_url': url
+                        'api_url': url,
+                        'record_count': len(data)
                     }
                 else:
                     debug_info['property_assessments'] = {'status': 'no_data', 'api_url': url}
@@ -391,9 +394,9 @@ def debug_calgary_fields():
         except Exception as e:
             debug_info['property_assessments'] = {'status': 'exception', 'error': str(e)}
         
-        # Test Zoning API with v3 format  
+        # Test Zoning API with SODA format  
         try:
-            url = f"{fetcher.base_url}/qe6k-p9nh/query.json"
+            url = f"{fetcher.base_url}/qe6k-p9nh.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -404,7 +407,8 @@ def debug_calgary_fields():
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
                         'sample_record': data[0],
-                        'api_url': url
+                        'api_url': url,
+                        'record_count': len(data)
                     }
                 else:
                     debug_info['zoning'] = {'status': 'no_data', 'api_url': url}
@@ -417,9 +421,9 @@ def debug_calgary_fields():
         except Exception as e:
             debug_info['zoning'] = {'status': 'exception', 'error': str(e)}
         
-        # Test Building Permits API with v3 format  
+        # Test Building Permits API with SODA format  
         try:
-            url = f"{fetcher.base_url}/c2es-76ed/query.json"
+            url = f"{fetcher.base_url}/c2es-76ed.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -430,7 +434,8 @@ def debug_calgary_fields():
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
                         'sample_record': data[0],
-                        'api_url': url
+                        'api_url': url,
+                        'record_count': len(data)
                     }
                 else:
                     debug_info['building_permits'] = {'status': 'no_data', 'api_url': url}
@@ -445,15 +450,24 @@ def debug_calgary_fields():
         
         # Show authentication status
         auth_status = {
-            'socrata_token_configured': bool(fetcher.session.headers.get('X-App-Token')),
-            'token_preview': fetcher.session.headers.get('X-App-Token', 'NOT_SET')[:10] + '...' if fetcher.session.headers.get('X-App-Token') else 'NOT_SET',
-            'base_url': fetcher.base_url
+            'socrata_token_configured': bool(current_app.config.get('SOCRATA_APP_TOKEN')),
+            'token_usage': 'NOT_USED - Calgary APIs work with anonymous access',
+            'calgary_token_note': 'Calgary developer tokens are incompatible with Socrata format',
+            'base_url': fetcher.base_url,
+            'api_format': 'SODA 2.0/2.1 (/resource/ endpoints)',
+            'authentication_method': 'Anonymous public access'
         }
         
         return jsonify({
             'success': True,
             'debug_info': debug_info,
             'authentication': auth_status,
+            'pagination_info': {
+                'max_per_request': 1000,
+                'soda_2_0_limit': 50000,
+                'soda_2_1_limit': 'unlimited',
+                'pagination_implemented': True
+            },
             'analysis': {
                 'zoning_fields_to_check': ['land_use_district', 'zoning', 'zone_class', 'zone_code', 'landuse', 'land_use', 'district_name'],
                 'construction_fields_to_check': ['year_built', 'construction_year', 'date_built', 'built_year', 'year_constructed'],
@@ -462,7 +476,7 @@ def debug_calgary_fields():
         })
         
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500 
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @buildings_bp.route('/permits', methods=['GET'])
 def get_building_permits():

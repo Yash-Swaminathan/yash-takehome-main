@@ -135,7 +135,7 @@ const CoordinateText = styled.div`
 
 function BuildingPopup({ building, onClose }) {
     const formatCurrency = (value) => {
-        if (!value) return 'Not available from data source';
+        if (!value || value === 0) return 'Assessment data not available';
         return new Intl.NumberFormat('en-CA', {
             style: 'currency',
             currency: 'CAD',
@@ -145,13 +145,47 @@ function BuildingPopup({ building, onClose }) {
     };
 
     const formatNumber = (value) => {
-        if (!value) return 'Not specified';
+        if (!value || value === 0) return 'Not specified';
         return new Intl.NumberFormat('en-CA').format(value);
     };
 
     const formatHeight = (height) => {
-        if (!height) return 'Not specified';
+        if (!height || height === 0) return 'Height data not available';
         return `${height} ${height > 50 ? 'm' : 'ft'}`;
+    };
+
+    const formatZoning = (zoning) => {
+        if (!zoning) return 'Zoning data not available';
+        
+        // Add explanations for common Calgary zoning codes
+        const zoningExplanations = {
+            'CC-X': 'Centre City District',
+            'RC-G': 'Residential - Grade-Oriented Infill',
+            'M-CG': 'Mixed Use - Commercial/Residential',
+            'M-C1': 'Mixed Use - Commercial Corridor',
+            'M-U': 'Mixed Use',
+            'C-C': 'Community Commercial',
+            'I-G': 'Industrial - General'
+        };
+        
+        const explanation = zoningExplanations[zoning];
+        return explanation ? `${zoning} (${explanation})` : zoning;
+    };
+
+    const formatConstructionYear = (year) => {
+        if (!year || year === 0) return 'Construction year not available';
+        
+        const currentYear = new Date().getFullYear();
+        const age = currentYear - year;
+        
+        if (age === 0) return `${year} (New construction)`;
+        if (age === 1) return `${year} (1 year old)`;
+        return `${year} (${age} years old)`;
+    };
+
+    const formatLandUse = (landUse) => {
+        if (!landUse) return 'Land use data not available';
+        return landUse;
     };
 
   const formatCoordinates = (lat, lng) => {
@@ -201,24 +235,27 @@ function BuildingPopup({ building, onClose }) {
 
           <InfoItem>
             <InfoLabel>Zoning</InfoLabel>
-            <InfoValue>{building.zoning || 'Not available in this area'}</InfoValue>
+            <InfoValue>{formatZoning(building.zoning)}</InfoValue>
           </InfoItem>
 
           <InfoItem>
             <InfoLabel>Land Use</InfoLabel>
-            <InfoValue>{building.land_use || 'Not specified'}</InfoValue>
+            <InfoValue>{formatLandUse(building.land_use)}</InfoValue>
           </InfoItem>
 
           <InfoItem>
             <InfoLabel>Construction Year</InfoLabel>
-            <InfoValue>{building.construction_year || 'Not available in this area'}</InfoValue>
+            <InfoValue>{formatConstructionYear(building.construction_year)}</InfoValue>
           </InfoItem>
         </InfoGrid>
 
         <FullWidthInfo>
           <InfoLabel>Data Source</InfoLabel>
           <InfoValue style={{fontSize: '12px', color: '#666'}}>
-            Real Calgary data from OpenStreetMap + City Open Data
+            {building.data_source === 'sample' 
+              ? 'Sample data with realistic Calgary building characteristics'
+              : 'Live data from Calgary Open Data + OpenStreetMap'
+            }
           </InfoValue>
         </FullWidthInfo>
 
