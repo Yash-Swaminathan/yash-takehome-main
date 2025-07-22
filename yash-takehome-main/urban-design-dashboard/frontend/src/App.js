@@ -48,7 +48,7 @@ const HeaderControls = styled.div`
 `;
 
 const StatusBadge = styled.div`
-  background: ${props => props.success ? 'rgba(46, 204, 113, 0.8)' : 'rgba(231, 76, 60, 0.8)'};
+  background: ${props => props.$success ? 'rgba(46, 204, 113, 0.8)' : 'rgba(231, 76, 60, 0.8)'};
   color: white;
   padding: 4px 8px;
   border-radius: 4px;
@@ -251,6 +251,46 @@ function App() {
         }
     };
 
+    const debugCalgaryAPIs = async () => {
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/buildings/debug/calgary-fields');
+            const data = await response.json();
+            
+            console.log('🔍 CALGARY API DEBUG RESULTS:');
+            console.log('================================');
+            
+            if (data.success) {
+                Object.entries(data.debug_info).forEach(([apiName, info]) => {
+                    console.log(`\n📋 ${apiName.toUpperCase()}:`);
+                    console.log(`Status: ${info.status}`);
+                    
+                    if (info.available_fields) {
+                        console.log(`Available fields: ${info.available_fields.join(', ')}`);
+                        console.log('Sample record:', info.sample_record);
+                    } else if (info.error) {
+                        console.log(`Error: ${info.error}`);
+                    }
+                });
+                
+                console.log('\n🎯 Fields we are looking for:');
+                console.log('Zoning:', data.analysis.zoning_fields_to_check.join(', '));
+                console.log('Construction:', data.analysis.construction_fields_to_check.join(', '));
+                console.log('Value:', data.analysis.value_fields_to_check.join(', '));
+                
+                toast.success('Debug info logged to console (F12 Developer Tools)');
+            } else {
+                console.error('Debug failed:', data.error);
+                toast.error('Debug failed: ' + data.error);
+            }
+        } catch (err) {
+            console.error('Debug error:', err);
+            toast.error('Debug failed: ' + err.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     // Show login screen if no user
     if (!user) {
         return (
@@ -267,7 +307,7 @@ function App() {
                 <Title>Urban Design Dashboard - Calgary Real Data</Title>
                 <HeaderControls>
                     {dataStatus && (
-                        <StatusBadge success={dataStatus.success}>
+                        <StatusBadge $success={dataStatus.success}>
                             {dataStatus.success 
                                 ? `${dataStatus.count} real buildings loaded` 
                                 : 'Data Error'
@@ -288,6 +328,14 @@ function App() {
                         disabled={isLoading}
                     >
                         {isLoading ? 'Loading...' : 'Refresh Data'}
+                    </ControlButton>
+                    
+                    <ControlButton
+                        onClick={debugCalgaryAPIs}
+                        disabled={isLoading}
+                        style={{ fontSize: '11px', padding: '6px 12px' }}
+                    >
+                        Debug APIs
                     </ControlButton>
                 </HeaderControls>
             </Header>

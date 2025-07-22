@@ -101,7 +101,7 @@ const TypeBadge = styled.span`
   text-transform: uppercase;
   letter-spacing: 0.5px;
   background: ${props => {
-    switch (props.type?.toLowerCase()) {
+    switch (props.$type?.toLowerCase()) {
       case 'commercial': return '#4A90E2';
       case 'residential': return '#7ED321';
       case 'industrial': return '#BD10E0';
@@ -177,7 +177,7 @@ function BuildingPopup({ building, onClose }) {
         <FullWidthInfo>
           <InfoLabel>Building Type</InfoLabel>
           <div>
-            <TypeBadge type={building.building_type}>
+            <TypeBadge $type={building.building_type}>
               {building.building_type || 'Unknown'}
             </TypeBadge>
           </div>

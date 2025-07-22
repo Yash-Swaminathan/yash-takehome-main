@@ -270,7 +270,7 @@ const StatusMessage = styled.div`
   border-radius: 8px;
   margin-bottom: 20px;
   font-size: 14px;
-  background: ${props => props.type === 'error' ? '#dc3545' : '#28a745'};
+  background: ${props => props.$type === 'error' ? '#dc3545' : '#28a745'};
   color: white;
 `;
 
@@ -416,7 +416,7 @@ function ProjectManager({ user, activeFilters, onClose, onSaveProject, onLoadPro
         </TabContainer>
 
         {error && (
-          <StatusMessage type="error">
+          <StatusMessage $type="error">
             Error: {error}
           </StatusMessage>
         )}
@@ -479,7 +479,7 @@ function ProjectManager({ user, activeFilters, onClose, onSaveProject, onLoadPro
 
         <TabContent active={activeTab === 'save'}>
           {!activeFilters ? (
-            <StatusMessage type="error">
+            <StatusMessage $type="error">
               No active filters to save. Please apply some filters first using the query interface.
             </StatusMessage>
           ) : (
