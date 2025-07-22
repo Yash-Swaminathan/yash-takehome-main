@@ -301,7 +301,7 @@ class DataFetcher:
         
         Args:
             parcel_ids: List of specific parcel IDs to fetch
-            bounds: (lat_min, lon_min, lat_max, lon_max) bounding box (if location data available)
+            bounds: (lat_min, lon_min, lat_max, lon_max) bounding box for spatial filtering
             limit: Maximum number of records to fetch
             
         Returns:
@@ -309,13 +309,29 @@ class DataFetcher:
         """
         try:
             additional_params = {
-                '$order': 'assessed_value DESC'
+                '$order': 'assessed_value DESC',
+                '$select': '*'  # Get all fields including multipolygon geometry
             }
+            
+            # Create where clause conditions
+            where_conditions = []
             
             # Filter by specific parcel IDs if provided
             if parcel_ids:
-                where_clause = ' OR '.join([f"parcel_id='{pid}'" for pid in parcel_ids])
-                additional_params['$where'] = where_clause
+                parcel_clause = ' OR '.join([f"roll_number='{pid}'" for pid in parcel_ids])
+                where_conditions.append(f"({parcel_clause})")
+            
+            # Add spatial filtering using bounds if provided
+            if bounds:
+                lat_min, lon_min, lat_max, lon_max = bounds
+                # Use within_box for spatial filtering on multipolygon geometry
+                spatial_clause = f"within_box(multipolygon, {lat_max}, {lon_min}, {lat_min}, {lon_max})"
+                where_conditions.append(spatial_clause)
+                logger.info(f"Using spatial filter for downtown Calgary: {bounds}")
+            
+            # Combine where conditions
+            if where_conditions:
+                additional_params['$where'] = ' AND '.join(where_conditions)
             
             # Use pagination to fetch property assessments
             raw_data = self.fetch_all_records('4bsw-nn7w', max_total_records=limit, additional_params=additional_params)
@@ -400,7 +416,7 @@ class DataFetcher:
     def _process_assessment_record(self, record: Dict) -> Optional[Dict]:
         """Process a property assessment record to standardize field names"""
         try:
-            # Extract assessed value with various possible field names
+            # Extract assessed value - Calgary uses 'assessed_value' field
             assessed_value = self._safe_float(
                 record.get('assessed_value') or 
                 record.get('total_assessed_value') or
@@ -410,7 +426,7 @@ class DataFetcher:
                 record.get('assessment_value')
             )
             
-            # Extract address
+            # Extract address - Calgary uses 'address' field
             address = (
                 record.get('address') or 
                 record.get('property_address') or
@@ -418,16 +434,51 @@ class DataFetcher:
                 record.get('full_address')
             )
             
-            # Extract coordinates if available
+            # Extract coordinates from multipolygon geometry if available
+            latitude = None
+            longitude = None
+            
+            # Check for direct lat/lng fields first
             latitude = self._safe_float(record.get('latitude') or record.get('lat'))
             longitude = self._safe_float(record.get('longitude') or record.get('lng'))
+            
+            # If not found, try to extract from multipolygon geometry
+            if not latitude or not longitude:
+                multipolygon = record.get('multipolygon')
+                if multipolygon and multipolygon.get('coordinates'):
+                    try:
+                        # Calgary multipolygon format: coordinates[0][0] contains the outer ring
+                        coords = multipolygon['coordinates'][0][0]
+                        if coords and len(coords) > 0:
+                            # Calculate centroid from polygon coordinates
+                            longs = [point[0] for point in coords if len(point) >= 2]
+                            lats = [point[1] for point in coords if len(point) >= 2]
+                            
+                            if longs and lats:
+                                longitude = sum(longs) / len(longs)
+                                latitude = sum(lats) / len(lats)
+                    except (KeyError, IndexError, TypeError) as e:
+                        logger.debug(f"Error extracting coordinates from multipolygon: {e}")
+            
+            # Only return record if we have essential data
+            if not assessed_value and not address:
+                return None
             
             return {
                 'assessed_value': assessed_value,
                 'address': address,
                 'latitude': latitude,
                 'longitude': longitude,
-                'parcel_id': record.get('parcel_id') or record.get('id'),
+                'parcel_id': record.get('parcel_id') or record.get('roll_number') or record.get('id'),
+                'assessment_class': record.get('assessment_class'),
+                'assessment_class_description': record.get('assessment_class_description'),
+                'property_type': record.get('property_type'),
+                'land_use_designation': record.get('land_use_designation'),
+                'year_of_construction': self._safe_int(record.get('year_of_construction')),
+                'roll_number': record.get('roll_number'),
+                'roll_year': record.get('roll_year'),
+                'comm_code': record.get('comm_code'),
+                'comm_name': record.get('comm_name'),
                 'raw_record': record
             }
             
@@ -483,6 +534,32 @@ class DataFetcher:
                     logger.warning(f"Calgary {source_name} unavailable: {e}")
                     continue
             
+            # Enhance with property assessment data
+            try:
+                logger.info("Attempting to fetch Calgary property assessment data...")
+                assessment_data = self.fetch_property_assessments(bounds=bounds, limit=2000)  # Get more assessments for better matching
+                if assessment_data:
+                    logger.info(f"Retrieved {len(assessment_data)} property assessment records")
+                    # Link assessment data to buildings
+                    buildings_with_assessments = 0
+                    for building in all_buildings:
+                        assessment = self._find_assessment_for_building(building, assessment_data)
+                        if assessment:
+                            # Add assessment data to building
+                            building['assessed_value'] = assessment.get('assessed_value')
+                            building['assessment_class'] = assessment.get('raw_record', {}).get('assessment_class')
+                            building['assessment_class_description'] = assessment.get('raw_record', {}).get('assessment_class_description')
+                            building['property_type'] = assessment.get('raw_record', {}).get('property_type')
+                            building['land_use_designation'] = assessment.get('raw_record', {}).get('land_use_designation')
+                            building['year_of_construction'] = assessment.get('raw_record', {}).get('year_of_construction')
+                            building['roll_number'] = assessment.get('raw_record', {}).get('roll_number')
+                            buildings_with_assessments += 1
+                    logger.info(f"Successfully linked {buildings_with_assessments}/{len(all_buildings)} buildings with assessment data")
+                else:
+                    logger.warning("No property assessment data available")
+            except Exception as e:
+                logger.warning(f"Property assessment data unavailable: {e}")
+
             # Enhance with zoning data if available
             try:
                 logger.info("Attempting to fetch Calgary zoning data...")

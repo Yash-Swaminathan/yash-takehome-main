@@ -181,31 +181,7 @@ def get_zoning_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@buildings_bp.route('/assessments', methods=['GET'])
-def get_property_assessments():
-    """Get property assessment data"""
-    try:
-        # Parse query parameters
-        parcel_ids_str = request.args.get('parcel_ids')
-        limit = int(request.args.get('limit', 1000))
-        
-        parcel_ids = None
-        if parcel_ids_str:
-            parcel_ids = parcel_ids_str.split(',')
-        
-        # Fetch assessment data
-        fetcher = DataFetcher()
-        assessment_data = fetcher.fetch_property_assessments(parcel_ids=parcel_ids, limit=limit)
-        
-        return jsonify({
-            'success': True,
-            'assessments': assessment_data,
-            'count': len(assessment_data),
-            'parcel_ids': parcel_ids
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+
 
 @buildings_bp.route('/3d', methods=['GET'])
 def get_3d_buildings():
@@ -506,6 +482,54 @@ def get_building_permits():
             'permits': permits_data,
             'bounds': bounds,
             'count': len(permits_data)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@buildings_bp.route('/assessments', methods=['GET'])
+def get_property_assessments():
+    """Get property assessment data for a specified area from Calgary Open Data"""
+    try:
+        # Parse query parameters
+        bounds_str = request.args.get('bounds')
+        limit = int(request.args.get('limit', 1000))
+        
+        if bounds_str:
+            try:
+                bounds = [float(x) for x in bounds_str.split(',')]
+                if len(bounds) != 4:
+                    raise ValueError("Invalid bounds format")
+                bounds = tuple(bounds)
+            except ValueError:
+                return jsonify({'error': 'Invalid bounds format. Use: lat_min,lng_min,lat_max,lng_max'}), 400
+        else:
+            # Default to downtown Calgary bounds
+            bounds = (51.0420, -114.0750, 51.0480, -114.0650)
+        
+        # Fetch property assessments data
+        fetcher = DataFetcher()
+        assessments_data = fetcher.fetch_property_assessments(bounds=bounds, limit=limit)
+        
+        # Calculate some statistics for debugging
+        if assessments_data:
+            values = [a.get('assessed_value', 0) for a in assessments_data if a.get('assessed_value')]
+            stats = {
+                'count': len(values),
+                'min': min(values) if values else 0,
+                'max': max(values) if values else 0,
+                'avg': sum(values) / len(values) if values else 0
+            }
+        else:
+            stats = {'count': 0, 'min': 0, 'max': 0, 'avg': 0}
+        
+        return jsonify({
+            'success': True,
+            'assessments': assessments_data,
+            'bounds': bounds,
+            'count': len(assessments_data),
+            'value_stats': stats
         })
         
     except Exception as e:

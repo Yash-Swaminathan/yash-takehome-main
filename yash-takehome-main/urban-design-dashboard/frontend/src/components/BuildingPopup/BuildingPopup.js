@@ -235,7 +235,43 @@ function BuildingPopup({ building, onClose }) {
             <InfoLabel>Land Use</InfoLabel>
             <InfoValue>{formatLandUse(building.land_use)}</InfoValue>
           </InfoItem>
+
+          {building.property_type && (
+            <InfoItem>
+              <InfoLabel>Property Type</InfoLabel>
+              <InfoValue>{building.property_type}</InfoValue>
+            </InfoItem>
+          )}
+
+          {building.year_of_construction && (
+            <InfoItem>
+              <InfoLabel>Year Built</InfoLabel>
+              <InfoValue>{building.year_of_construction}</InfoValue>
+            </InfoItem>
+          )}
         </InfoGrid>
+
+        {(building.assessment_class || building.land_use_designation || building.comm_name) && (
+          <FullWidthInfo>
+            <InfoLabel>Assessment Details</InfoLabel>
+            <InfoValue style={{fontSize: '12px', lineHeight: '1.4'}}>
+              {building.assessment_class_description && (
+                <div><strong>Class:</strong> {building.assessment_class_description}</div>
+              )}
+              {building.land_use_designation && (
+                <div><strong>Land Use:</strong> {building.land_use_designation}</div>
+              )}
+              {building.comm_name && (
+                <div><strong>Community:</strong> {building.comm_name}</div>
+              )}
+              {building.roll_number && (
+                <div style={{color: '#888', fontSize: '11px', marginTop: '4px'}}>
+                  Roll Number: {building.roll_number}
+                </div>
+              )}
+            </InfoValue>
+          </FullWidthInfo>
+        )}
 
         <FullWidthInfo>
           <InfoLabel>Data Source</InfoLabel>

@@ -10,7 +10,7 @@ function Building({ building, position, isSelected, onClick }) {
     const geometry = useMemo(() => {
         // Use height from data, with better scaling for Calgary buildings
         const rawHeight = building.height || (building.floors ? building.floors * 3.5 : 30);
-        const height = Math.max(rawHeight * 0.1, 3); // Much smaller scale and ensure minimum height
+        const height = Math.max(rawHeight * 0.3, 5); // Better scale and ensure minimum height
 
         // Handle different geometry sources
         let footprintCoords = null;
@@ -79,7 +79,10 @@ function Building({ building, position, isSelected, onClick }) {
                     bevelSegments: 1
                 };
 
-                return new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                // Translate geometry so the bottom sits on the ground
+                geometry.translate(0, 0, height / 2);
+                return geometry;
             } catch (error) {
                 console.warn('Error creating building geometry from footprint:', error);
                 // Fall back to box geometry
@@ -89,7 +92,10 @@ function Building({ building, position, isSelected, onClick }) {
         // Fallback to box geometry if no footprint available or if footprint processing failed
         const width = 8 + Math.random() * 6; // Random width between 8-14
         const depth = 6 + Math.random() * 6; // Random depth between 6-12
-        return new THREE.BoxGeometry(width, height, depth);
+        const geometry = new THREE.BoxGeometry(width, height, depth);
+        // Translate geometry so the bottom sits on the ground (box geometry is centered by default)
+        geometry.translate(0, height / 2, 0);
+        return geometry;
     }, [building.footprint, building.geometry, building.height, building.floors]);
 
     // Enhanced color system based on multiple factors
@@ -102,17 +108,28 @@ function Building({ building, position, isSelected, onClick }) {
             colorMode = 'value';
             const value = building.assessed_value;
             
-            // Color scale based on assessed value ranges (Calgary-specific)
-            if (value > 5000000) {
-                baseColor = '#FF0000'; // Red for very high value (>5M)
+            // Log assessed value for debugging (first few buildings only)
+            if (Math.random() < 0.1) { // Log ~10% of buildings to avoid spam
+                console.log(`Building assessed value: $${value.toLocaleString()} at ${building.address}`);
+            }
+            
+            // Color scale based on realistic Calgary assessed value ranges
+            if (value > 10000000) {
+                baseColor = '#8B0000'; // Dark red for extremely high value (>10M) - likely commercial towers
+            } else if (value > 5000000) {
+                baseColor = '#FF0000'; // Red for very high value (5-10M) - high-end commercial/residential
             } else if (value > 2000000) {
-                baseColor = '#FF6600'; // Orange for high value (2-5M)
+                baseColor = '#FF4500'; // Orange-red for high value (2-5M) - premium properties
             } else if (value > 1000000) {
-                baseColor = '#FFCC00'; // Yellow for medium-high value (1-2M)
+                baseColor = '#FFA500'; // Orange for medium-high value (1-2M) - typical condos/houses
             } else if (value > 500000) {
-                baseColor = '#66FF66'; // Light green for medium value (500k-1M)
+                baseColor = '#FFD700'; // Gold for medium value (500k-1M) - average properties
+            } else if (value > 200000) {
+                baseColor = '#ADFF2F'; // Green-yellow for lower-medium value (200k-500k) 
+            } else if (value > 50000) {
+                baseColor = '#32CD32'; // Green for lower value (50k-200k) - older/smaller properties
             } else {
-                baseColor = '#0066FF'; // Blue for lower value (<500k)
+                baseColor = '#4169E1'; // Blue for very low value (<50k) - land value only?
             }
         } else {
             // Color by building type

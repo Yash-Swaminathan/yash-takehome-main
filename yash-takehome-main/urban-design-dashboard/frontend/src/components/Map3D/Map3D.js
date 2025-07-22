@@ -100,8 +100,8 @@ function Controls() {
       enablePan={true}
       enableZoom={true}
       enableRotate={true}
-      minDistance={50}
-      maxDistance={500}
+      minDistance={80}
+      maxDistance={800}
       minPolarAngle={0}
       maxPolarAngle={Math.PI / 2}
     />
@@ -135,18 +135,47 @@ function Ground({ bounds }) {
   const groundRef = useRef();
   
   const groundSize = useMemo(() => {
-    if (!bounds || bounds.length !== 4) return [200, 200];
+    // Create a much larger ground plane that covers the entire building area
+    const baseSize = 1000; // Larger base size
+    if (!bounds || bounds.length !== 4) return [baseSize, baseSize];
+    
+    // Make ground proportional to the spread of buildings but ensure it's always large enough
     const [latMin, lonMin, latMax, lonMax] = bounds;
-    const width = Math.abs(lonMax - lonMin) * 1000;
-    const height = Math.abs(latMax - latMin) * 1000;
-    return [Math.max(width, 100), Math.max(height, 100)];
+    const latRange = Math.abs(latMax - latMin);
+    const lonRange = Math.abs(lonMax - lonMin);
+    
+    // Scale based on coordinate range but with reasonable limits
+    const width = Math.max(lonRange * 15000, baseSize);
+    const height = Math.max(latRange * 15000, baseSize);
+    
+    return [width, height];
   }, [bounds]);
   
   return (
-    <mesh ref={groundRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, -1, 0]} receiveShadow>
-      <planeGeometry args={groundSize} />
-      <meshLambertMaterial color="#90EE90" />
-    </mesh>
+    <>
+      {/* Main ground plane */}
+      <mesh ref={groundRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+        <planeGeometry args={groundSize} />
+        <meshLambertMaterial color="#4A7C59" />
+      </mesh>
+      
+      {/* Grid lines for better depth perception */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]}>
+        <planeGeometry args={[groundSize[0] * 0.9, groundSize[1] * 0.9]} />
+        <meshBasicMaterial 
+          color="#3A6B47" 
+          transparent 
+          opacity={0.2}
+          wireframe
+        />
+      </mesh>
+      
+      {/* Center reference point */}
+      <mesh position={[0, 1, 0]}>
+        <cylinderGeometry args={[2, 2, 2, 8]} />
+        <meshBasicMaterial color="#FF6B6B" transparent opacity={0.7} />
+      </mesh>
+    </>
   );
 }
 
@@ -155,9 +184,28 @@ function BuildingsContainer({ buildings, selectedBuilding, onBuildingClick, boun
   const buildingsData = useMemo(() => {
     if (!buildings || buildings.length === 0) return [];
     
-    // Calculate center for positioning from actual building coordinates
+    // Separate buildings with coordinates from those without
     const validBuildings = buildings.filter(b => b.latitude && b.longitude);
-    if (validBuildings.length === 0) return [];
+    const invalidBuildings = buildings.filter(b => !b.latitude || !b.longitude);
+    
+    if (validBuildings.length === 0) {
+      // If no valid coordinates, use grid layout for all buildings
+      return buildings.map((building, index) => {
+        const gridSize = Math.ceil(Math.sqrt(buildings.length));
+        const row = Math.floor(index / gridSize);
+        const col = index % gridSize;
+        const spacing = 25;
+        
+        return {
+          ...building,
+          position: [
+            (col - gridSize / 2) * spacing,
+            0,
+            (row - gridSize / 2) * spacing
+          ]
+        };
+      });
+    }
     
     // Find the actual center of the buildings
     const avgLat = validBuildings.reduce((sum, b) => sum + b.latitude, 0) / validBuildings.length;
@@ -167,49 +215,101 @@ function BuildingsContainer({ buildings, selectedBuilding, onBuildingClick, boun
     const latRange = Math.max(...validBuildings.map(b => b.latitude)) - Math.min(...validBuildings.map(b => b.latitude));
     const lngRange = Math.max(...validBuildings.map(b => b.longitude)) - Math.min(...validBuildings.map(b => b.longitude));
     
-    // Use a scale that ensures buildings are spread out over a reasonable area (e.g., 500 units total)
-    const targetSpread = 400; // Total area size in 3D units
+    // Use a more conservative scale to spread buildings out better
+    const targetSpread = 600; // Increased spread for better distribution
     const maxRange = Math.max(latRange, lngRange);
-    const scale = maxRange > 0 ? targetSpread / maxRange : 50000;
+    let scale = maxRange > 0 ? targetSpread / maxRange : 100000;
     
-    console.log(`Positioning ${validBuildings.length} buildings. Center: ${avgLat.toFixed(4)}, ${avgLng.toFixed(4)}. Scale: ${scale.toFixed(0)}`);
+    // Ensure minimum spacing between buildings
+    const minBuildingSpacing = 15; // Minimum distance between building centers
     
-    return buildings.map((building, index) => {
-      let position;
+    console.log(`Positioning ${validBuildings.length} buildings. Center: ${avgLat.toFixed(6)}, ${avgLng.toFixed(6)}. Scale: ${scale.toFixed(0)}`);
+    
+    // Track used positions to prevent overlapping
+    const usedPositions = new Set();
+    
+    const result = [];
+    
+    // Process buildings with valid coordinates
+    validBuildings.forEach((building, index) => {
+      // Calculate base position
+      let x = (building.longitude - avgLng) * scale;
+      let z = -(building.latitude - avgLat) * scale; // Negative for proper orientation
       
-      if (building.latitude && building.longitude) {
-        // Use real coordinates with proper scaling
-        const x = (building.longitude - avgLng) * scale;
-        const z = -(building.latitude - avgLat) * scale; // Negative for proper orientation
-        const y = 0; // Ground level
-        
-        position = [x, y, z];
-        
-        // Debug log for first few buildings
-        if (index < 3) {
-          console.log(`Building ${index}: ${building.address} at (${building.latitude.toFixed(4)}, ${building.longitude.toFixed(4)}) -> 3D position (${x.toFixed(1)}, ${y}, ${z.toFixed(1)})`);
-        }
-      } else {
-        // Fallback grid positioning for buildings without coordinates
-        const gridSize = Math.ceil(Math.sqrt(buildings.length));
-        const row = Math.floor(index / gridSize);
-        const col = index % gridSize;
-        const spacing = 30;
-        
-        position = [
-          (col - gridSize / 2) * spacing,
-          0,
-          (row - gridSize / 2) * spacing
-        ];
-        
-        console.log(`Building ${index}: No coordinates, using grid position (${position[0]}, ${position[1]}, ${position[2]})`);
+      // Round to grid to help with spacing
+      x = Math.round(x / minBuildingSpacing) * minBuildingSpacing;
+      z = Math.round(z / minBuildingSpacing) * minBuildingSpacing;
+      
+      // Check for collisions and adjust position if needed
+      let attempts = 0;
+      const maxAttempts = 20;
+      const posKey = `${x},${z}`;
+      
+      while (usedPositions.has(posKey) && attempts < maxAttempts) {
+        // Spiral outward to find a free position
+        const angle = attempts * 0.618 * 2 * Math.PI; // Golden angle for even distribution
+        const radius = minBuildingSpacing * (1 + attempts * 0.3);
+        x = Math.round(x + Math.cos(angle) * radius);
+        z = Math.round(z + Math.sin(angle) * radius);
+        attempts++;
       }
       
-      return {
+      usedPositions.add(`${x},${z}`);
+      
+      const position = [x, 0, z]; // Buildings sit on ground (y=0)
+      
+      // Debug log for first few buildings
+      if (index < 5) {
+        console.log(`Building ${index}: ${building.address?.substring(0, 30)} at (${building.latitude.toFixed(6)}, ${building.longitude.toFixed(6)}) -> 3D position (${x.toFixed(1)}, 0, ${z.toFixed(1)})`);
+      }
+      
+      result.push({
         ...building,
         position: position
-      };
+      });
     });
+    
+    // Add buildings without coordinates to empty areas
+    if (invalidBuildings.length > 0) {
+      console.log(`Adding ${invalidBuildings.length} buildings without coordinates to grid positions`);
+      
+      invalidBuildings.forEach((building, index) => {
+        // Find an empty spot in a grid pattern around the edge of the main area
+        let found = false;
+        let spiralRadius = targetSpread * 0.6; // Start outside the main cluster
+        
+        for (let attempt = 0; attempt < 50 && !found; attempt++) {
+          const angle = (index + attempt) * 0.618 * 2 * Math.PI; // Golden angle
+          const x = Math.round(Math.cos(angle) * spiralRadius / minBuildingSpacing) * minBuildingSpacing;
+          const z = Math.round(Math.sin(angle) * spiralRadius / minBuildingSpacing) * minBuildingSpacing;
+          const posKey = `${x},${z}`;
+          
+          if (!usedPositions.has(posKey)) {
+            usedPositions.add(posKey);
+            result.push({
+              ...building,
+              position: [x, 0, z]
+            });
+            found = true;
+          } else {
+            spiralRadius += minBuildingSpacing;
+          }
+        }
+        
+        if (!found) {
+          // Fallback: place far away
+          const fallbackX = (targetSpread + index * minBuildingSpacing);
+          const fallbackZ = 0;
+          result.push({
+            ...building,
+            position: [fallbackX, 0, fallbackZ]
+          });
+        }
+      });
+    }
+    
+    console.log(`Final positioning: ${result.length} total buildings positioned`);
+    return result;
   }, [buildings, bounds]);
   
   return (
@@ -234,16 +334,15 @@ function CameraSetup({ bounds }) {
   React.useEffect(() => {
     if (bounds && bounds.length === 4) {
       const [latMin, lonMin, latMax, lonMax] = bounds;
-      const centerLat = (latMin + latMax) / 2;
-      const centerLon = (lonMin + lonMax) / 2;
-      const range = Math.max(latMax - latMin, lonMax - lonMin) * 100; // Reduced scale
+      const range = Math.max(latMax - latMin, lonMax - lonMin);
       
-      // Position camera closer for the smaller scale
-      camera.position.set(range * 0.8, range * 1.2, range * 0.8);
+      // Position camera based on the building spread (now using larger target spread)
+      const cameraDistance = 400; // Fixed distance for consistent view
+      camera.position.set(cameraDistance * 0.6, cameraDistance * 0.8, cameraDistance * 0.6);
       camera.lookAt(0, 0, 0);
     } else {
-      // Default camera position for sample data
-      camera.position.set(80, 120, 80);
+      // Default camera position for sample/fallback data
+      camera.position.set(150, 200, 150);
       camera.lookAt(0, 0, 0);
     }
   }, [camera, bounds]);
@@ -290,7 +389,7 @@ function Map3D({ buildings, selectedBuilding, onBuildingClick, isLoading, bounds
         </LoadingOverlay>
       )}
       <Canvas 
-        camera={{ position: [100, 150, 100], fov: 60, near: 1, far: 2000 }} 
+        camera={{ position: [240, 320, 240], fov: 60, near: 1, far: 3000 }} 
         shadows 
         style={{ background: 'transparent' }}
       >
