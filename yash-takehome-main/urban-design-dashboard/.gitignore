@@ -96,4 +96,9 @@ coverage.xml
 *.tmp
 *.temp 
 
+.instance/
+.urban_dashboard.db
+
+
+
 .history
