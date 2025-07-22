@@ -102,3 +102,30 @@ coverage.xml
 
 
 .history
+
+# Ignore Python cache and venv
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+env/
+venv/
+.cache/
+*.db
+*.sqlite3
+
+# Ignore git and node stuff
+.git/
+.gitignore
+node_modules/
+npm-debug.log
+.DS_Store
+
+# Ignore large files
+*.pdf
+*.zip
+*.tar
+*.tar.gz
+*.csv
+*.xlsx
