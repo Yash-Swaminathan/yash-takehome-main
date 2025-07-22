@@ -13,12 +13,10 @@ class Config:
     HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY')
     HUGGINGFACE_API_URL = 'https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium'
     
-    # Calgary Open Data API Configuration (Socrata v3.0)
-    # IMPORTANT: v3.0 API requires authentication via App Token
-    # Sign up at https://dev.socrata.com/register to get a free token
-    # Without this token, API calls will return 403 Forbidden errors
-    CALGARY_OPEN_DATA_BASE_URL = 'https://data.calgary.ca/api/v3/views'
-    SOCRATA_APP_TOKEN = os.environ.get('SOCRATA_APP_TOKEN')  # REQUIRED for v3 API - get from dev.socrata.com
+    # Calgary Open Data API Configuration (Calgary's Native API)
+    # Get your developer token from: https://data.calgary.ca/profile/edit/developer_settings
+    CALGARY_OPEN_DATA_BASE_URL = 'https://data.calgary.ca/resource'
+    CALGARY_DEVELOPER_TOKEN = os.environ.get('CALGARY_DEVELOPER_TOKEN')  # Calgary's native developer token
     
     # CORS Configuration
     CORS_ORIGINS = ['http://localhost:3000', 'https://localhost:3000']
