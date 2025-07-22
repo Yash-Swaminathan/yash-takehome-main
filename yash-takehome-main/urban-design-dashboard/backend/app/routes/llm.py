@@ -25,15 +25,19 @@ def process_query():
         query_result = llm_service.process_query(query)
         
         # Check if query processing was successful
-        if not query_result.get('filters'):
+        filters = query_result.get('filters', {})
+        if not filters or len(filters) == 0:
             return jsonify({
                 'success': False,
-                'error': query_result.get('error', 'Could not understand the query'),
+                'error': query_result.get('error', 'Could not understand the query. Please try a more specific query.'),
                 'original_query': query,
+                'method': query_result.get('method', 'unknown'),
+                'confidence': query_result.get('confidence', 0),
                 'suggestions': [
                     'Try: "buildings over 100 feet"',
-                    'Try: "commercial buildings"',
+                    'Try: "commercial buildings"', 
                     'Try: "buildings worth less than $500,000"',
+                    'Try: "CC-X buildings"',
                     'Try: "RC-G zoning"'
                 ]
             })
@@ -47,7 +51,7 @@ def process_query():
             buildings = Building.query.all()
         
         # Apply filters
-        filtered_buildings = processor.filter_buildings(buildings, query_result['filters'])
+        filtered_buildings = processor.filter_buildings(buildings, filters)
         
         # Convert to JSON
         buildings_json = [building.to_dict() for building in filtered_buildings]
@@ -58,11 +62,11 @@ def process_query():
         return jsonify({
             'success': True,
             'query': query,
-            'filters': query_result['filters'],
+            'filters': filters,
             'buildings': buildings_json,
             'statistics': stats,
             'metadata': {
-                'source': query_result.get('source'),
+                'method': query_result.get('method'),
                 'confidence': query_result.get('confidence'),
                 'total_buildings': len(buildings),
                 'matched_buildings': len(filtered_buildings)
@@ -134,14 +138,7 @@ def get_query_suggestions():
                 'M-CG zoned properties'
             ]
         },
-        {
-            'category': 'Age',
-            'examples': [
-                'buildings built after 2010',
-                'buildings constructed before 2000',
-                'new buildings'
-            ]
-        }
+
     ]
     
     return jsonify({

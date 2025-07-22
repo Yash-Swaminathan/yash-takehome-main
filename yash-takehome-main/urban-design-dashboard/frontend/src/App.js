@@ -277,9 +277,9 @@ function App() {
                 });
                 
                 console.log('\n🎯 Fields we are looking for:');
-                console.log('Zoning:', data.analysis.zoning_fields_to_check.join(', '));
-                console.log('Construction:', data.analysis.construction_fields_to_check.join(', '));
-                console.log('Value:', data.analysis.value_fields_to_check.join(', '));
+                console.log('Zoning:', data.analysis?.zoning_fields_to_check?.join(', ') || 'None');
+                console.log('Construction:', data.analysis?.construction_fields_to_check?.join(', ') || 'None');
+                console.log('Value:', data.analysis?.value_fields_to_check?.join(', ') || 'None');
                 
                 toast.success('Debug info logged to console (F12 Developer Tools)');
             } else {

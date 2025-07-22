@@ -9,9 +9,7 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///urban_dashboard.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # API Configuration
-    HUGGINGFACE_API_KEY = os.environ.get('HUGGINGFACE_API_KEY')
-    HUGGINGFACE_API_URL = 'https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium'
+
     
     # Calgary Open Data API Configuration (Calgary's Native API)
     # Get your developer token from: https://data.calgary.ca/profile/edit/developer_settings
