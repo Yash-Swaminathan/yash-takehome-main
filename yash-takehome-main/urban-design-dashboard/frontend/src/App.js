@@ -64,12 +64,14 @@ const MainContent = styled.div`
 
 const SidePanel = styled.div`
   width: 400px;
+  height: 100%;
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
   z-index: 100;
   box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 `;
 
 const DataSourceInfo = styled.div`
@@ -78,6 +80,7 @@ const DataSourceInfo = styled.div`
   border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   font-size: 12px;
   line-height: 1.4;
+  flex-shrink: 0;
   
   h4 {
     margin: 0 0 8px 0;

@@ -8,10 +8,12 @@ const Container = styled.div`
   flex-direction: column;
   height: 100%;
   background: white;
+  overflow: hidden;
 `;
 
 const Section = styled.div`
   margin-bottom: 20px;
+  flex-shrink: 0;
 `;
 
 const SectionTitle = styled.h3`
@@ -150,9 +152,37 @@ const FilterDetails = styled.div`
   color: #666;
 `;
 
+const SuggestionsSection = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+`;
+
 const SuggestionsContainer = styled.div`
   flex: 1;
   overflow-y: auto;
+  padding-right: 5px;
+  
+  /* Custom scrollbar styles */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
 `;
 
 const SuggestionCategory = styled.div`
@@ -312,7 +342,7 @@ function QueryInterface({
         </Section>
       )}
 
-      <Section>
+      <SuggestionsSection>
         <SectionTitle>Query Examples</SectionTitle>
         <SuggestionsContainer>
           {suggestions.map((category, index) => (
@@ -331,7 +361,7 @@ function QueryInterface({
             </SuggestionCategory>
           ))}
         </SuggestionsContainer>
-      </Section>
+      </SuggestionsSection>
 
       <StatsContainer>
         <span>
