@@ -470,7 +470,7 @@ def debug_calgary_fields():
             },
             'analysis': {
                 'zoning_fields_to_check': ['land_use_district', 'zoning', 'zone_class', 'zone_code', 'landuse', 'land_use', 'district_name'],
-                'construction_fields_to_check': ['year_built', 'construction_year', 'date_built', 'built_year', 'year_constructed'],
+                # Construction year fields removed - not needed
                 'value_fields_to_check': ['assessed_value', 'total_assessed_value', 'current_assessed_value', 'property_value']
             }
         })

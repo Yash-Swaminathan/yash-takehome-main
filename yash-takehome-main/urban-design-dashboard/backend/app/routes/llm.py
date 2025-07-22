@@ -165,7 +165,7 @@ def validate_filters():
         required_fields = ['attribute', 'operator', 'value']
         valid_attributes = [
             'height', 'zoning', 'assessed_value', 'building_type', 
-            'floors', 'construction_year', 'land_use'
+            'floors', 'land_use'
         ]
         valid_operators = ['>', '<', '=', '>=', '<=', 'contains']
         

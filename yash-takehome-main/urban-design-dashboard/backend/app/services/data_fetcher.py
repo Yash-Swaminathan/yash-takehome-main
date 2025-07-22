@@ -418,13 +418,6 @@ class DataFetcher:
                 record.get('full_address')
             )
             
-            # Extract construction year
-            year_built = self._safe_int(
-                record.get('year_built') or
-                record.get('construction_year') or
-                record.get('year_constructed')
-            )
-            
             # Extract coordinates if available
             latitude = self._safe_float(record.get('latitude') or record.get('lat'))
             longitude = self._safe_float(record.get('longitude') or record.get('lng'))
@@ -432,7 +425,6 @@ class DataFetcher:
             return {
                 'assessed_value': assessed_value,
                 'address': address,
-                'year_built': year_built,
                 'latitude': latitude,
                 'longitude': longitude,
                 'parcel_id': record.get('parcel_id') or record.get('id'),
@@ -571,14 +563,7 @@ class DataFetcher:
                 except:
                     pass
             
-            # Extract construction year from various OSM tags
-            construction_year = None
-            year_tags = ['start_date', 'construction_start', 'year_built', 'built']
-            for tag in year_tags:
-                if tags.get(tag):
-                    construction_year = self._extract_year(tags[tag])
-                    if construction_year:
-                        break
+            # Construction year not needed - removed
             
             # Try to get zoning information from landuse or other tags
             zoning = None
@@ -619,7 +604,6 @@ class DataFetcher:
                 'zoning': zoning,  # Will be None if not available
                 'assessed_value': assessed_value,
                 'land_use': tags.get('landuse', building_type_normalized),
-                'construction_year': construction_year,  # Will be None if not available
                 'data_source': 'openstreetmap',
                 'osm_amenity': tags.get('amenity', ''),
                 'osm_name': tags.get('name', ''),
@@ -653,8 +637,6 @@ class DataFetcher:
                 
             elif source == 'building_permits':
                 building_type = record.get('permitclassmapped', record.get('permitclass', 'Unknown'))
-                # Extract construction info from permit dates
-                construction_year = self._extract_year_from_permit(record)
                 address = record.get('originaladdress', f"Building {building_id}, Calgary, AB")
                 height = None
                 # Estimate height from project cost and square footage
@@ -666,19 +648,16 @@ class DataFetcher:
             elif source == 'property_assessments':
                 building_type = record.get('assessment_class_description', 'Unknown')
                 address = record.get('address', f"Building {building_id}, Calgary, AB")
-                construction_year = None  # Not available in assessments
                 height = None
                 
             elif source == 'footprints':
                 building_type = record.get('bldg_code_desc', 'Unknown')
                 address = f"Building {building_id}, Calgary, AB"
-                construction_year = None
                 height = None
                 
             else:
                 building_type = 'Unknown'
                 address = f"Building {building_id}, Calgary, AB"
-                construction_year = None
                 height = None
             
             # Normalize building type
@@ -713,11 +692,7 @@ class DataFetcher:
             if not assessed_value:
                 assessed_value = self._estimate_building_value(building_type_normalized, height, floors)
             
-            # Set construction year from building permits
-            if source == 'building_permits':
-                construction_year = self._extract_year_from_permit(record)
-            else:
-                construction_year = construction_year if 'construction_year' in locals() else None
+            # Construction year not needed - removed
             
             # Create return object
             result = {
@@ -731,7 +706,6 @@ class DataFetcher:
                 'zoning': zoning,
                 'assessed_value': assessed_value,
                 'land_use': building_type_normalized,
-                'construction_year': construction_year,
                 'data_source': source,
                 'geometry': record.get('multipolygon') or record.get('polygon'),
                 'raw_record': record
@@ -740,8 +714,6 @@ class DataFetcher:
             # Log successful processing
             if zoning:
                 logger.debug(f"Calgary {source} {building_id}: found zoning='{zoning}'")
-            if construction_year:
-                logger.debug(f"Calgary {source} {building_id}: found construction_year={construction_year}")
             
             return result
             
@@ -895,34 +867,7 @@ class DataFetcher:
             
         return None
     
-    def _extract_year_from_permit(self, record: Dict) -> Optional[int]:
-        """Extract construction year from building permit dates"""
-        try:
-            # Try completion date first (most accurate for construction year)
-            completion_date = record.get('completeddate')
-            if completion_date:
-                year = self._extract_year(completion_date)
-                if year:
-                    return year
-            
-            # Fallback to issued date
-            issued_date = record.get('issueddate')
-            if issued_date:
-                year = self._extract_year(issued_date)
-                if year:
-                    return year
-            
-            # Last resort: applied date
-            applied_date = record.get('applieddate')
-            if applied_date:
-                year = self._extract_year(applied_date)
-                if year:
-                    return year
-                    
-        except Exception as e:
-            logger.debug(f"Error extracting year from permit: {e}")
-            
-        return None
+    # Year extraction functions removed - construction year not needed
     
     def _create_osm_address(self, tags: Dict, lat: float, lng: float) -> str:
         """Create a realistic address from OSM tags"""
@@ -1007,14 +952,7 @@ class DataFetcher:
         else:
             return building_type.title()
     
-    def _extract_year(self, date_str: str) -> Optional[int]:
-        """Extract year from date string"""
-        try:
-            if date_str and len(date_str) >= 4:
-                return int(date_str[:4])
-        except:
-            pass
-        return None
+    # _extract_year function removed - construction year not needed
     
     def _safe_float(self, value) -> Optional[float]:
         """Safely convert value to float"""
@@ -1248,7 +1186,6 @@ class DataFetcher:
             'floors': new.get('floors') or existing.get('floors'),
             'assessed_value': new.get('assessed_value') or existing.get('assessed_value'),
             'zoning': new.get('zoning') or existing.get('zoning'),
-            'construction_year': new.get('construction_year') or existing.get('construction_year'),
             'address': new.get('address') or existing.get('address')
         }
         

@@ -157,30 +157,23 @@ function BuildingPopup({ building, onClose }) {
     const formatZoning = (zoning) => {
         if (!zoning) return 'Zoning data not available';
         
-        // Add explanations for common Calgary zoning codes
+        // Calgary zoning code explanations
         const zoningExplanations = {
-            'CC-X': 'Centre City District',
-            'RC-G': 'Residential - Grade-Oriented Infill',
+            'CC-X': 'Centre City - Mixed use downtown core',
+            'RC-G': 'Residential - Contextual One/Two Dwelling District',
             'M-CG': 'Mixed Use - Commercial/Residential',
-            'M-C1': 'Mixed Use - Commercial Corridor',
-            'M-U': 'Mixed Use',
-            'C-C': 'Community Commercial',
-            'I-G': 'Industrial - General'
+            'C-C1': 'Commercial - Community Commercial',
+            'C-O': 'Commercial - Office',
+            'I-G': 'Industrial - General Industrial',
+            'R-C1': 'Residential - Contextual One Dwelling',
+            'R-C2': 'Residential - Contextual One/Two Dwelling',
+            'M-C1': 'Mixed Use - Commercial',
+            'M-H1': 'Mixed Use - High Density',
+            'DC': 'Direct Control District'
         };
         
         const explanation = zoningExplanations[zoning];
         return explanation ? `${zoning} (${explanation})` : zoning;
-    };
-
-    const formatConstructionYear = (year) => {
-        if (!year || year === 0) return 'Construction year not available';
-        
-        const currentYear = new Date().getFullYear();
-        const age = currentYear - year;
-        
-        if (age === 0) return `${year} (New construction)`;
-        if (age === 1) return `${year} (1 year old)`;
-        return `${year} (${age} years old)`;
     };
 
     const formatLandUse = (landUse) => {
@@ -241,11 +234,6 @@ function BuildingPopup({ building, onClose }) {
           <InfoItem>
             <InfoLabel>Land Use</InfoLabel>
             <InfoValue>{formatLandUse(building.land_use)}</InfoValue>
-          </InfoItem>
-
-          <InfoItem>
-            <InfoLabel>Construction Year</InfoLabel>
-            <InfoValue>{formatConstructionYear(building.construction_year)}</InfoValue>
           </InfoItem>
         </InfoGrid>
 

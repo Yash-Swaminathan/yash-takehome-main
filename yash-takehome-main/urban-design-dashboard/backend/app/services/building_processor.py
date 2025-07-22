@@ -141,9 +141,7 @@ class BuildingProcessor:
                             data.get('use_description') or
                             building.building_type)
         
-        # Additional metadata
-        building.construction_year = self._safe_int(data.get('construction_year') or 
-                                                   data.get('year_built'))
+        # Additional metadata - construction year removed
         building.last_updated = datetime.utcnow()
         
         # Store data source for tracking

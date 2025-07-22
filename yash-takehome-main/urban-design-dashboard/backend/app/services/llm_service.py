@@ -101,7 +101,7 @@ class LLMService:
         prompt = f"""
 Extract building filter criteria from this query: "{user_query}"
 
-Available attributes: height, zoning, assessed_value, building_type, floors, construction_year
+Available attributes: height, zoning, assessed_value, building_type, floors
 Available operators: >, <, =, >=, <=, contains
 
 Return ONLY a JSON object with:
@@ -257,7 +257,7 @@ JSON:"""
         
         valid_attributes = [
             'height', 'zoning', 'assessed_value', 'building_type', 
-            'floors', 'construction_year', 'land_use'
+            'floors', 'land_use'
         ]
         if filter_data['attribute'] not in valid_attributes:
             return False
