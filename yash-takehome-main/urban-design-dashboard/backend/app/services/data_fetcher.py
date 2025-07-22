@@ -9,7 +9,8 @@ class DataFetcher:
     """Service for fetching data from Calgary Open Data API and OpenStreetMap"""
     
     def __init__(self):
-        self.base_url = 'https://data.calgary.ca/resource'
+        # Updated to use Socrata API v3 format
+        self.base_url = 'https://data.calgary.ca/api/v3/views'
         self.osm_url = 'https://overpass-api.de/api/interpreter'
         self.session = requests.Session()
         self.session.headers.update({
@@ -17,10 +18,12 @@ class DataFetcher:
             'User-Agent': 'Urban-Design-Dashboard/1.0'
         })
         
-        # Add Socrata App Token if configured
+        # Add Socrata App Token if configured (REQUIRED for v3 API)
         api_token = current_app.config.get('SOCRATA_APP_TOKEN')
         if api_token:
             self.session.headers['X-App-Token'] = api_token
+        else:
+            logger.warning("No SOCRATA_APP_TOKEN configured. Calgary API calls may fail with 403 Forbidden.")
     
     def fetch_osm_buildings(self, bounds: Optional[Tuple[float, float, float, float]] = None, limit: int = 500) -> List[Dict]:
         """
@@ -85,8 +88,8 @@ class DataFetcher:
             if len(osm_buildings) > 5:
                 return osm_buildings
             
-            # Fallback to Calgary Open Data
-            url = f"{self.base_url}/uc4c-6kbd.json"  # Try JSON first
+            # Fallback to Calgary Open Data using v3 API format
+            url = f"{self.base_url}/uc4c-6kbd/query.json"
             
             params = {
                 '$limit': limit,
@@ -123,7 +126,8 @@ class DataFetcher:
         Dataset ID: cchr-krqg
         """
         try:
-            url = f"{self.base_url}/cchr-krqg.json"  # Try JSON format
+            # Use v3 API format
+            url = f"{self.base_url}/cchr-krqg/query.json"
             
             params = {
                 '$limit': limit
@@ -166,7 +170,8 @@ class DataFetcher:
             List of zoning records
         """
         try:
-            url = f"{self.base_url}/qe6k-p9nh.geojson"
+            # Use v3 API format for zoning data
+            url = f"{self.base_url}/qe6k-p9nh/query.json"
             
             params = {
                 '$limit': limit
@@ -183,11 +188,11 @@ class DataFetcher:
             
             data = response.json()
             
-            # Convert GeoJSON to our format
+            # Convert data to our format
             zoning_data = []
-            if 'features' in data:
-                for feature in data['features']:
-                    zone = self._process_zoning_feature(feature)
+            if isinstance(data, list):
+                for record in data:
+                    zone = self._process_zoning_feature(record)
                     if zone:
                         zoning_data.append(zone)
             
@@ -215,7 +220,8 @@ class DataFetcher:
             List of property assessment records
         """
         try:
-            url = f"{self.base_url}/4bsw-nn7w.json"
+            # Use v3 API format
+            url = f"{self.base_url}/4bsw-nn7w/query.json"
             
             params = {
                 '$limit': limit,
@@ -253,6 +259,60 @@ class DataFetcher:
             logger.error(f"Unexpected error fetching property assessments: {e}")
             return []
     
+    def fetch_building_permits(self, bounds: Optional[Tuple[float, float, float, float]] = None, limit: int = 1000) -> List[Dict]:
+        """
+        Fetch building permits data from Calgary Open Data
+        Dataset ID: c2es-76ed
+        
+        Args:
+            bounds: (lat_min, lon_min, lat_max, lon_max) bounding box
+            limit: Maximum number of records to fetch
+            
+        Returns:
+            List of building permit records
+        """
+        try:
+            # Use v3 API format for building permits
+            url = f"{self.base_url}/c2es-76ed/query.json"
+            
+            params = {
+                '$limit': limit,
+                '$order': 'permit_date DESC'  # Get most recent permits first
+            }
+            
+            # Add spatial filter if bounds provided
+            if bounds:
+                lat_min, lon_min, lat_max, lon_max = bounds
+                # Check if dataset has location fields
+                where_clause = f"latitude IS NOT NULL AND longitude IS NOT NULL"
+                params['$where'] = where_clause
+            
+            response = self.session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Log available fields for debugging
+            if data and len(data) > 0:
+                logger.info(f"Available building permit fields: {list(data[0].keys())}")
+            
+            # Process permit data to standardize field names
+            processed_data = []
+            for record in data:
+                processed_record = self._process_building_permit_record(record)
+                if processed_record:
+                    processed_data.append(processed_record)
+            
+            logger.info(f"Fetched {len(processed_data)} building permits from Calgary Open Data")
+            return processed_data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error fetching building permits: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error fetching building permits: {e}")
+            return []
+
     def _process_assessment_record(self, record: Dict) -> Optional[Dict]:
         """Process a property assessment record to standardize field names"""
         try:
@@ -1091,3 +1151,105 @@ class DataFetcher:
             logger.debug(f"Error finding assessment for building: {e}")
         
         return None 
+
+    def _process_building_permit_record(self, record: Dict) -> Optional[Dict]:
+        """Process a building permit record to standardize field names"""
+        try:
+            # Extract permit information with various possible field names
+            permit_number = (
+                record.get('permit_number') or
+                record.get('permit_id') or
+                record.get('number') or
+                record.get('id')
+            )
+            
+            # Extract address
+            address = (
+                record.get('address') or 
+                record.get('property_address') or
+                record.get('civic_address') or
+                record.get('full_address') or
+                record.get('site_address')
+            )
+            
+            # Extract permit type and work type
+            permit_type = (
+                record.get('permit_type') or
+                record.get('type') or
+                record.get('work_type') or
+                record.get('permit_class')
+            )
+            
+            # Extract construction value
+            construction_value = self._safe_float(
+                record.get('construction_value') or
+                record.get('value') or
+                record.get('estimated_value') or
+                record.get('project_value')
+            )
+            
+            # Extract coordinates if available
+            latitude = self._safe_float(record.get('latitude') or record.get('lat'))
+            longitude = self._safe_float(record.get('longitude') or record.get('lng'))
+            
+            # Extract dates
+            permit_date = record.get('permit_date') or record.get('issue_date') or record.get('date_issued')
+            
+            return {
+                'permit_number': permit_number,
+                'address': address,
+                'permit_type': permit_type,
+                'construction_value': construction_value,
+                'latitude': latitude,
+                'longitude': longitude,
+                'permit_date': permit_date,
+                'raw_record': record
+            }
+            
+        except Exception as e:
+            logger.debug(f"Error processing building permit record: {e}")
+            return None 
+
+    def _process_zoning_feature(self, record: Dict) -> Optional[Dict]:
+        """Process a zoning record from Calgary Open Data v3 API"""
+        try:
+            # Extract basic zoning information
+            zone_code = (
+                record.get('zone_code') or
+                record.get('zoning') or
+                record.get('zone_class') or
+                record.get('district_code') or
+                record.get('land_use_district')
+            )
+            
+            # Extract zone name/description
+            zone_name = (
+                record.get('zone_name') or
+                record.get('district_name') or
+                record.get('description') or
+                record.get('land_use_description')
+            )
+            
+            # Extract coordinates from various possible fields
+            latitude = self._safe_float(record.get('latitude') or record.get('lat'))
+            longitude = self._safe_float(record.get('longitude') or record.get('lng'))
+            
+            # Try to extract from geometry if coordinates not found
+            if not latitude or not longitude:
+                geometry = record.get('geometry') or record.get('the_geom')
+                if geometry:
+                    lat, lng = self._extract_calgary_coordinates(geometry)
+                    latitude = latitude or lat
+                    longitude = longitude or lng
+            
+            return {
+                'zone_code': zone_code,
+                'zone_name': zone_name,
+                'latitude': latitude,
+                'longitude': longitude,
+                'raw_record': record
+            }
+            
+        except Exception as e:
+            logger.debug(f"Error processing zoning record: {e}")
+            return None 

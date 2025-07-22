@@ -308,14 +308,14 @@ def get_building_statistics():
 
 @buildings_bp.route('/debug/calgary-fields', methods=['GET'])
 def debug_calgary_fields():
-    """Debug endpoint to see what fields are available in Calgary Open Data APIs"""
+    """Debug endpoint to see what fields are available in Calgary Open Data APIs using v3 format"""
     try:
         fetcher = DataFetcher()
         debug_info = {}
         
-        # Test 3D Buildings API
+        # Test 3D Buildings API with v3 format
         try:
-            url = f"{fetcher.base_url}/cchr-krqg.json"
+            url = f"{fetcher.base_url}/cchr-krqg/query.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -325,21 +325,23 @@ def debug_calgary_fields():
                     debug_info['3d_buildings'] = {
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
-                        'sample_record': data[0]
+                        'sample_record': data[0],
+                        'api_url': url
                     }
                 else:
-                    debug_info['3d_buildings'] = {'status': 'no_data'}
+                    debug_info['3d_buildings'] = {'status': 'no_data', 'api_url': url}
             else:
                 debug_info['3d_buildings'] = {
                     'status': 'error',
-                    'error': f"{response.status_code}: {response.text[:200]}"
+                    'error': f"{response.status_code}: {response.text[:200]}",
+                    'api_url': url
                 }
         except Exception as e:
             debug_info['3d_buildings'] = {'status': 'exception', 'error': str(e)}
         
-        # Test Building Footprints API
+        # Test Building Footprints API with v3 format
         try:
-            url = f"{fetcher.base_url}/uc4c-6kbd.json"
+            url = f"{fetcher.base_url}/uc4c-6kbd/query.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -349,21 +351,23 @@ def debug_calgary_fields():
                     debug_info['building_footprints'] = {
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
-                        'sample_record': data[0]
+                        'sample_record': data[0],
+                        'api_url': url
                     }
                 else:
-                    debug_info['building_footprints'] = {'status': 'no_data'}
+                    debug_info['building_footprints'] = {'status': 'no_data', 'api_url': url}
             else:
                 debug_info['building_footprints'] = {
                     'status': 'error',
-                    'error': f"{response.status_code}: {response.text[:200]}"
+                    'error': f"{response.status_code}: {response.text[:200]}",
+                    'api_url': url
                 }
         except Exception as e:
             debug_info['building_footprints'] = {'status': 'exception', 'error': str(e)}
         
-        # Test Property Assessments API
+        # Test Property Assessments API with v3 format
         try:
-            url = f"{fetcher.base_url}/4bsw-nn7w.json"
+            url = f"{fetcher.base_url}/4bsw-nn7w/query.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
@@ -373,52 +377,122 @@ def debug_calgary_fields():
                     debug_info['property_assessments'] = {
                         'status': 'success',
                         'available_fields': list(data[0].keys()),
-                        'sample_record': data[0]
+                        'sample_record': data[0],
+                        'api_url': url
                     }
                 else:
-                    debug_info['property_assessments'] = {'status': 'no_data'}
+                    debug_info['property_assessments'] = {'status': 'no_data', 'api_url': url}
             else:
                 debug_info['property_assessments'] = {
                     'status': 'error',
-                    'error': f"{response.status_code}: {response.text[:200]}"
+                    'error': f"{response.status_code}: {response.text[:200]}",
+                    'api_url': url
                 }
         except Exception as e:
             debug_info['property_assessments'] = {'status': 'exception', 'error': str(e)}
         
-        # Test Zoning API  
+        # Test Zoning API with v3 format  
         try:
-            url = f"{fetcher.base_url}/qe6k-p9nh.geojson"
+            url = f"{fetcher.base_url}/qe6k-p9nh/query.json"
             params = {'$limit': 1}
             response = fetcher.session.get(url, params=params, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
-                if 'features' in data and len(data['features']) > 0:
-                    properties = data['features'][0].get('properties', {})
+                if data and len(data) > 0:
                     debug_info['zoning'] = {
                         'status': 'success',
-                        'available_fields': list(properties.keys()),
-                        'sample_record': properties
+                        'available_fields': list(data[0].keys()),
+                        'sample_record': data[0],
+                        'api_url': url
                     }
                 else:
-                    debug_info['zoning'] = {'status': 'no_data'}
+                    debug_info['zoning'] = {'status': 'no_data', 'api_url': url}
             else:
                 debug_info['zoning'] = {
                     'status': 'error',
-                    'error': f"{response.status_code}: {response.text[:200]}"
+                    'error': f"{response.status_code}: {response.text[:200]}",
+                    'api_url': url
                 }
         except Exception as e:
             debug_info['zoning'] = {'status': 'exception', 'error': str(e)}
         
+        # Test Building Permits API with v3 format  
+        try:
+            url = f"{fetcher.base_url}/c2es-76ed/query.json"
+            params = {'$limit': 1}
+            response = fetcher.session.get(url, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    debug_info['building_permits'] = {
+                        'status': 'success',
+                        'available_fields': list(data[0].keys()),
+                        'sample_record': data[0],
+                        'api_url': url
+                    }
+                else:
+                    debug_info['building_permits'] = {'status': 'no_data', 'api_url': url}
+            else:
+                debug_info['building_permits'] = {
+                    'status': 'error',
+                    'error': f"{response.status_code}: {response.text[:200]}",
+                    'api_url': url
+                }
+        except Exception as e:
+            debug_info['building_permits'] = {'status': 'exception', 'error': str(e)}
+        
+        # Show authentication status
+        auth_status = {
+            'socrata_token_configured': bool(fetcher.session.headers.get('X-App-Token')),
+            'token_preview': fetcher.session.headers.get('X-App-Token', 'NOT_SET')[:10] + '...' if fetcher.session.headers.get('X-App-Token') else 'NOT_SET',
+            'base_url': fetcher.base_url
+        }
+        
         return jsonify({
             'success': True,
             'debug_info': debug_info,
+            'authentication': auth_status,
             'analysis': {
-                'zoning_fields_to_check': ['zoning', 'zone_class', 'zone_code', 'landuse', 'land_use', 'district_name'],
-                'construction_fields_to_check': ['year_built', 'construction_year', 'date_built', 'built_year'],
-                'value_fields_to_check': ['assessed_value', 'total_assessed_value', 'current_assessed_value']
+                'zoning_fields_to_check': ['land_use_district', 'zoning', 'zone_class', 'zone_code', 'landuse', 'land_use', 'district_name'],
+                'construction_fields_to_check': ['year_built', 'construction_year', 'date_built', 'built_year', 'year_constructed'],
+                'value_fields_to_check': ['assessed_value', 'total_assessed_value', 'current_assessed_value', 'property_value']
             }
         })
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500 
+
+@buildings_bp.route('/permits', methods=['GET'])
+def get_building_permits():
+    """Get building permits data for a specified area"""
+    try:
+        # Parse query parameters
+        bounds_str = request.args.get('bounds')
+        limit = int(request.args.get('limit', 1000))
+        
+        if bounds_str:
+            try:
+                bounds = [float(x) for x in bounds_str.split(',')]
+                if len(bounds) != 4:
+                    raise ValueError("Invalid bounds format")
+                bounds = tuple(bounds)
+            except ValueError:
+                return jsonify({'error': 'Invalid bounds format. Use: lat_min,lng_min,lat_max,lng_max'}), 400
+        else:
+            bounds = None
+        
+        # Fetch building permits data
+        fetcher = DataFetcher()
+        permits_data = fetcher.fetch_building_permits(bounds=bounds, limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'permits': permits_data,
+            'bounds': bounds,
+            'count': len(permits_data)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500 
