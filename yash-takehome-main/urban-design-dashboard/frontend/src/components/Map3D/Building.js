@@ -10,7 +10,7 @@ function Building({ building, position, isSelected, onClick }) {
     const geometry = useMemo(() => {
         // Use height from data, with better scaling for Calgary buildings
         const rawHeight = building.height || (building.floors ? building.floors * 3.5 : 30);
-        const height = Math.max(rawHeight * 0.5, 5); // Scale down and ensure minimum height
+        const height = Math.max(rawHeight * 0.1, 3); // Much smaller scale and ensure minimum height
 
         // Handle different geometry sources
         let footprintCoords = null;
@@ -32,12 +32,24 @@ function Building({ building, position, isSelected, onClick }) {
             try {
                 // Create shape from footprint coordinates
                 const shape = new THREE.Shape();
+                
+                // Calculate bounds for scaling
+                const minX = Math.min(...footprintCoords.map(p => p[0]));
+                const maxX = Math.max(...footprintCoords.map(p => p[0]));
+                const minY = Math.min(...footprintCoords.map(p => p[1]));
+                const maxY = Math.max(...footprintCoords.map(p => p[1]));
+                
+                const centerX = (minX + maxX) / 2;
+                const centerY = (minY + maxY) / 2;
+                
+                // Much smaller scale factor for reasonable building sizes
+                const scale = 5000;
 
                 footprintCoords.forEach((point, index) => {
                     if (point && point.length >= 2) {
-                        // Handle both [lng, lat] and [x, y] formats
-                        const x = (point[0] - (building.longitude || 0)) * 100000; // Scale to reasonable size
-                        const y = (point[1] - (building.latitude || 0)) * 100000;
+                        // Center and scale the coordinates
+                        const x = (point[0] - centerX) * scale;
+                        const y = (point[1] - centerY) * scale;
 
                         if (index === 0) {
                             shape.moveTo(x, y);
@@ -51,8 +63,8 @@ function Building({ building, position, isSelected, onClick }) {
                 if (footprintCoords.length > 0) {
                     const firstPoint = footprintCoords[0];
                     if (firstPoint && firstPoint.length >= 2) {
-                        const x = (firstPoint[0] - (building.longitude || 0)) * 100000;
-                        const y = (firstPoint[1] - (building.latitude || 0)) * 100000;
+                        const x = (firstPoint[0] - centerX) * scale;
+                        const y = (firstPoint[1] - centerY) * scale;
                         shape.lineTo(x, y);
                     }
                 }
@@ -75,10 +87,10 @@ function Building({ building, position, isSelected, onClick }) {
         }
 
         // Fallback to box geometry if no footprint available or if footprint processing failed
-        const width = 15 + Math.random() * 10; // Random width between 15-25
-        const depth = 10 + Math.random() * 10; // Random depth between 10-20
+        const width = 8 + Math.random() * 6; // Random width between 8-14
+        const depth = 6 + Math.random() * 6; // Random depth between 6-12
         return new THREE.BoxGeometry(width, height, depth);
-    }, [building.footprint, building.geometry, building.height, building.floors, building.latitude, building.longitude]);
+    }, [building.footprint, building.geometry, building.height, building.floors]);
 
     // Enhanced color system based on multiple factors
     const material = useMemo(() => {
@@ -156,12 +168,13 @@ function Building({ building, position, isSelected, onClick }) {
         });
     }, [building.building_type, building.assessed_value, building.zoning, isSelected, hovered]);
 
-    // Animation for selected buildings
-    useFrame(() => {
-        if (meshRef.current && isSelected) {
-            meshRef.current.rotation.y += 0.01; // Slow rotation
-        }
-    });
+    // Remove the rotation animation to stop the weird spinning behavior
+    // Animation for selected buildings - REMOVED
+    // useFrame(() => {
+    //     if (meshRef.current && isSelected) {
+    //         meshRef.current.rotation.y += 0.01; // Slow rotation
+    //     }
+    // });
 
     const handleClick = (event) => {
         event.stopPropagation();

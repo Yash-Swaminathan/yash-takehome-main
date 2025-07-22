@@ -15,6 +15,29 @@ const MapContainer = styled.div`
   background: linear-gradient(to bottom, #87CEEB 0%, #98FB98 50%, #90EE90 100%);
 `;
 
+const LocationInfo = styled.div`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  z-index: 100;
+  
+  h4 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: #4A90E2;
+  }
+  
+  p {
+    margin: 4px 0;
+  }
+`;
+
 const LoadingOverlay = styled.div`
   position: absolute;
   top: 0;
@@ -137,21 +160,45 @@ function BuildingsContainer({ buildings, selectedBuilding, onBuildingClick, boun
       ? [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2]
       : [buildings[0]?.latitude || 0, buildings[0]?.longitude || 0];
     
-    return buildings.map(building => ({
-      ...building,
-      position: [
-        (building.longitude - center[1]) * 1000,
-        0,
-        -(building.latitude - center[0]) * 1000
-      ]
-    }));
+    // Use a much smaller scale factor to prevent huge distances
+    const scale = 100; // Reduced from 1000
+    
+    return buildings.map((building, index) => {
+      // Use building coordinates if available, otherwise use array index for basic spacing
+      let position;
+      
+      if (building.latitude && building.longitude) {
+        position = [
+          (building.longitude - center[1]) * scale,
+          0,
+          -(building.latitude - center[0]) * scale
+        ];
+      } else {
+        // Fallback positioning in a grid if coordinates are missing
+        const gridSize = Math.ceil(Math.sqrt(buildings.length));
+        const row = Math.floor(index / gridSize);
+        const col = index % gridSize;
+        const spacing = 20;
+        
+        position = [
+          (col - gridSize / 2) * spacing,
+          0,
+          (row - gridSize / 2) * spacing
+        ];
+      }
+      
+      return {
+        ...building,
+        position: position
+      };
+    });
   }, [buildings, bounds]);
   
   return (
     <group>
       {buildingsData.map((building, index) => (
         <Building
-          key={building.building_id || index}
+          key={building.building_id || `building-${index}`}
           building={building}
           position={building.position}
           isSelected={selectedBuilding?.building_id === building.building_id}
@@ -171,12 +218,14 @@ function CameraSetup({ bounds }) {
       const [latMin, lonMin, latMax, lonMax] = bounds;
       const centerLat = (latMin + latMax) / 2;
       const centerLon = (lonMin + lonMax) / 2;
-      const range = Math.max(latMax - latMin, lonMax - lonMin) * 1000;
+      const range = Math.max(latMax - latMin, lonMax - lonMin) * 100; // Reduced scale
       
-      camera.position.set(range * 0.5, range * 0.7, range * 0.5);
+      // Position camera closer for the smaller scale
+      camera.position.set(range * 0.8, range * 1.2, range * 0.8);
       camera.lookAt(0, 0, 0);
     } else {
-      camera.position.set(100, 150, 100);
+      // Default camera position for sample data
+      camera.position.set(80, 120, 80);
       camera.lookAt(0, 0, 0);
     }
   }, [camera, bounds]);
@@ -248,6 +297,25 @@ function Map3D({ buildings, selectedBuilding, onBuildingClick, isLoading, bounds
         • Right-click + drag to pan<br />
         • Click buildings for details
       </ControlsInfo>
+      <LocationInfo>
+        <h4>📍 Calgary Location</h4>
+        {bounds && bounds.length === 4 ? (
+          <>
+            <p><strong>Area:</strong> Downtown Calgary</p>
+            <p><strong>District:</strong> Beltline/Centre City</p>
+            <p><strong>Approx. Coverage:</strong> 3-4 blocks</p>
+            <p style={{fontSize: '10px', opacity: 0.8, marginTop: '8px'}}>
+              Lat: {bounds[0].toFixed(4)}° - {bounds[2].toFixed(4)}°<br/>
+              Lng: {bounds[1].toFixed(4)}° - {bounds[3].toFixed(4)}°
+            </p>
+          </>
+        ) : (
+          <>
+            <p><strong>Area:</strong> Calgary Sample Data</p>
+            <p><strong>District:</strong> Downtown Core</p>
+          </>
+        )}
+      </LocationInfo>
     </MapContainer>
   );
 }

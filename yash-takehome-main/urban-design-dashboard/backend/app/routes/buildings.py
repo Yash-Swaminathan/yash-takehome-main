@@ -30,11 +30,13 @@ def get_buildings_in_area():
         
         # Check if we should refresh data or use cached data
         if refresh or Building.query.count() == 0:
-            # Fetch fresh data from Calgary Open Data API based on source
+            # Fetch fresh data from different sources based on selection
             if data_source == '3d':
                 raw_data = fetcher.fetch_3d_buildings(bounds=tuple(bounds))
             elif data_source == 'footprints':
                 raw_data = fetcher.fetch_building_footprints(bounds=tuple(bounds))
+            elif data_source == 'osm':
+                raw_data = fetcher.fetch_osm_buildings(bounds=tuple(bounds))
             else:  # combined
                 raw_data = fetcher.fetch_combined_building_data(bounds=tuple(bounds))
             
@@ -240,6 +242,40 @@ def get_3d_buildings():
             'buildings': buildings_3d,
             'bounds': bounds,
             'count': len(buildings_3d)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@buildings_bp.route('/osm', methods=['GET'])
+def get_osm_buildings():
+    """Get building data from OpenStreetMap"""
+    try:
+        # Parse query parameters
+        bounds_str = request.args.get('bounds')
+        limit = int(request.args.get('limit', 100))
+        
+        if bounds_str:
+            try:
+                bounds = [float(x) for x in bounds_str.split(',')]
+                if len(bounds) != 4:
+                    raise ValueError("Invalid bounds format")
+                bounds = tuple(bounds)
+            except ValueError:
+                return jsonify({'error': 'Invalid bounds format. Use: lat_min,lng_min,lat_max,lng_max'}), 400
+        else:
+            bounds = None
+        
+        # Fetch OSM building data
+        fetcher = DataFetcher()
+        buildings_osm = fetcher.fetch_osm_buildings(bounds=bounds, limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'buildings': buildings_osm,
+            'bounds': bounds,
+            'count': len(buildings_osm),
+            'data_source': 'openstreetmap'
         })
         
     except Exception as e:

@@ -335,9 +335,10 @@ function App() {
                         onChange={(e) => handleDataSourceChange(e.target.value)}
                         disabled={isLoading}
                     >
-                        <option value="combined">Combined (3D + Footprints)</option>
-                        <option value="3d">3D Buildings Only</option>
-                        <option value="footprints">Building Footprints</option>
+                        <option value="combined">Combined (OSM + Calgary)</option>
+                        <option value="osm">OpenStreetMap Buildings</option>
+                        <option value="3d">Calgary 3D Buildings</option>
+                        <option value="footprints">Calgary Footprints</option>
                     </DataSourceSelector>
                     
                     {dataStatus && (
@@ -377,16 +378,19 @@ function App() {
             <MainContent>
                 <SidePanel>
                     <DataSourceInfo>
-                        <h4>Calgary Open Data Integration</h4>
+                        <h4>Real Building Data Sources</h4>
                         <p>
                             <strong>Current Source:</strong> {dataSource}<br/>
                             <strong>Buildings:</strong> {filteredBuildings.length} of {buildings.length}<br/>
-                            <strong>Zoning Districts:</strong> {zoningData.length}<br/>
                             <strong>Area:</strong> Downtown Calgary (3-4 blocks)
                         </p>
                         <p style={{ marginTop: '8px', fontStyle: 'italic' }}>
-                            Buildings are colored by {buildings.some(b => b.assessed_value) ? 'assessed value' : 'building type'}.
-                            Height data from Calgary 3D Buildings dataset.
+                            {dataSource === 'osm' ? 
+                                'OpenStreetMap: Real building names, heights, and types from community mapping.' :
+                                dataSource === 'combined' ?
+                                'Combined: OpenStreetMap + Calgary Open Data for comprehensive coverage.' :
+                                'Buildings colored by assessed value when available, building type otherwise.'
+                            }
                         </p>
                     </DataSourceInfo>
                     
