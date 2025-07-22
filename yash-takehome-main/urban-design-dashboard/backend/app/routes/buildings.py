@@ -7,12 +7,12 @@ buildings_bp = Blueprint('buildings', __name__)
 
 @buildings_bp.route('/area', methods=['GET'])
 def get_buildings_in_area():
-    """Get buildings within a specified area using combined data sources"""
+    """Get buildings within a specified area using intelligent combined data sources"""
     try:
         # Parse query parameters
         bounds_str = request.args.get('bounds')
         refresh = request.args.get('refresh', 'false').lower() == 'true'
-        data_source = request.args.get('source', 'combined')  # footprints, 3d, combined
+        # Always use combined intelligent data source
         
         if not bounds_str:
             return jsonify({'error': 'bounds parameter is required (format: lat_min,lng_min,lat_max,lng_max)'}), 400
@@ -30,15 +30,8 @@ def get_buildings_in_area():
         
         # Check if we should refresh data or use cached data
         if refresh or Building.query.count() == 0:
-            # Fetch fresh data from different sources based on selection
-            if data_source == '3d':
-                raw_data = fetcher.fetch_3d_buildings(bounds=tuple(bounds))
-            elif data_source == 'footprints':
-                raw_data = fetcher.fetch_building_footprints(bounds=tuple(bounds))
-            elif data_source == 'osm':
-                raw_data = fetcher.fetch_osm_buildings(bounds=tuple(bounds))
-            else:  # combined
-                raw_data = fetcher.fetch_combined_building_data(bounds=tuple(bounds))
+            # Always use intelligent combined data source
+            raw_data = fetcher.fetch_combined_building_data(bounds=tuple(bounds))
             
             if raw_data:
                 # Process and store buildings
@@ -60,7 +53,7 @@ def get_buildings_in_area():
             'buildings': buildings_json,
             'statistics': stats,
             'bounds': bounds,
-            'data_source': data_source,
+            'data_source': 'combined_intelligent',
             'cache_status': 'fresh' if refresh else 'cached'
         })
         

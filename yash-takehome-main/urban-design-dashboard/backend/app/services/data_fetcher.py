@@ -90,14 +90,18 @@ class DataFetcher:
             
             params = {
                 '$limit': limit,
-                '$offset': 0,
-                '$select': 'objectid,address,building_type,year_built,zoning,geometry'
+                '$offset': 0
+                # Removed restrictive $select to get ALL available fields
             }
             
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             
             data = response.json()
+            
+            # Log first record to see all available fields
+            if data and len(data) > 0:
+                logger.info(f"Available footprint fields: {list(data[0].keys())}")
             
             # Process Calgary data
             buildings = []
@@ -122,14 +126,18 @@ class DataFetcher:
             url = f"{self.base_url}/cchr-krqg.json"  # Try JSON format
             
             params = {
-                '$limit': limit,
-                '$select': 'building_id,building_use,height,address,zoning,geometry'
+                '$limit': limit
+                # Removed restrictive $select to get ALL available fields
             }
             
             response = self.session.get(url, params=params, timeout=30)
             response.raise_for_status()
             
             data = response.json()
+            
+            # Log first record to see all available fields
+            if data and len(data) > 0:
+                logger.info(f"Available 3D building fields: {list(data[0].keys())}")
             
             # Process Calgary 3D data
             buildings = []
@@ -223,8 +231,20 @@ class DataFetcher:
             response.raise_for_status()
             
             data = response.json()
-            logger.info(f"Fetched {len(data)} property assessments from Calgary Open Data")
-            return data
+            
+            # Log available fields for debugging
+            if data and len(data) > 0:
+                logger.info(f"Available assessment fields: {list(data[0].keys())}")
+            
+            # Process assessment data to standardize field names
+            processed_data = []
+            for record in data:
+                processed_record = self._process_assessment_record(record)
+                if processed_record:
+                    processed_data.append(processed_record)
+            
+            logger.info(f"Fetched {len(processed_data)} property assessments from Calgary Open Data")
+            return processed_data
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching property assessments: {e}")
@@ -233,36 +253,171 @@ class DataFetcher:
             logger.error(f"Unexpected error fetching property assessments: {e}")
             return []
     
-    def fetch_combined_building_data(self, bounds: Optional[Tuple[float, float, float, float]] = None, limit: int = 500) -> List[Dict]:
-        """
-        Fetch and combine data from multiple sources for comprehensive building information
-        """
+    def _process_assessment_record(self, record: Dict) -> Optional[Dict]:
+        """Process a property assessment record to standardize field names"""
         try:
-            # Primary: Try OpenStreetMap for high-quality data
-            osm_buildings = self.fetch_osm_buildings(bounds, min(limit, 100))
+            # Extract assessed value with various possible field names
+            assessed_value = self._safe_float(
+                record.get('assessed_value') or 
+                record.get('total_assessed_value') or
+                record.get('current_assessed_value') or
+                record.get('property_value') or
+                record.get('market_value') or
+                record.get('assessment_value')
+            )
             
-            if len(osm_buildings) > 10:
-                logger.info(f"Using OSM data: {len(osm_buildings)} buildings")
-                return osm_buildings
+            # Extract address
+            address = (
+                record.get('address') or 
+                record.get('property_address') or
+                record.get('civic_address') or
+                record.get('full_address')
+            )
             
-            # Secondary: Try Calgary 3D buildings
-            calgary_3d = self.fetch_3d_buildings(bounds, limit)
-            if len(calgary_3d) > 5:
-                logger.info(f"Using Calgary 3D data: {len(calgary_3d)} buildings")
-                return calgary_3d
+            # Extract construction year
+            year_built = self._safe_int(
+                record.get('year_built') or
+                record.get('construction_year') or
+                record.get('year_constructed')
+            )
             
-            # Tertiary: Try Calgary footprints
-            calgary_footprints = self.fetch_building_footprints(bounds, limit)
-            if len(calgary_footprints) > 5:
-                logger.info(f"Using Calgary footprints: {len(calgary_footprints)} buildings")
-                return calgary_footprints
+            # Extract coordinates if available
+            latitude = self._safe_float(record.get('latitude') or record.get('lat'))
+            longitude = self._safe_float(record.get('longitude') or record.get('lng'))
             
-            # Fallback: Enhanced sample data
-            logger.info("Using enhanced sample data")
-            return self._get_sample_data()
+            return {
+                'assessed_value': assessed_value,
+                'address': address,
+                'year_built': year_built,
+                'latitude': latitude,
+                'longitude': longitude,
+                'parcel_id': record.get('parcel_id') or record.get('id'),
+                'raw_record': record
+            }
             
         except Exception as e:
-            logger.error(f"Error fetching combined building data: {e}")
+            logger.debug(f"Error processing assessment record: {e}")
+            return None
+    
+    def fetch_combined_building_data(self, bounds: Optional[Tuple[float, float, float, float]] = None, limit: int = 500) -> List[Dict]:
+        """
+        Fetch and combine data from multiple sources for comprehensive building information.
+        Intelligent strategy that combines OpenStreetMap + Calgary Open Data for best coverage.
+        """
+        try:
+            logger.info("Starting intelligent data fetch from multiple sources...")
+            combined_buildings = []
+            building_ids_seen = set()
+            
+            # Strategy 1: OpenStreetMap for high-quality community data
+            logger.info("Fetching from OpenStreetMap...")
+            osm_buildings = self.fetch_osm_buildings(bounds, min(limit, 200))
+            
+            for building in osm_buildings:
+                building_id = building['building_id']
+                if building_id not in building_ids_seen:
+                    combined_buildings.append(building)
+                    building_ids_seen.add(building_id)
+            
+            logger.info(f"Added {len(osm_buildings)} buildings from OpenStreetMap")
+            
+            # Strategy 2: Calgary 3D Buildings for height data
+            logger.info("Fetching from Calgary 3D Buildings...")
+            calgary_3d = self.fetch_3d_buildings(bounds, min(limit, 300))
+            
+            for building in calgary_3d:
+                building_id = building['building_id']
+                if building_id not in building_ids_seen:
+                    combined_buildings.append(building)
+                    building_ids_seen.add(building_id)
+                else:
+                    # Enhance existing OSM building with Calgary data
+                    for i, existing in enumerate(combined_buildings):
+                        if existing['building_id'] == building_id:
+                            # Merge data, preferring Calgary for official attributes
+                            if building.get('assessed_value') and not existing.get('assessed_value'):
+                                combined_buildings[i]['assessed_value'] = building['assessed_value']
+                            if building.get('zoning') and not existing.get('zoning'):
+                                combined_buildings[i]['zoning'] = building['zoning']
+                            if building.get('construction_year') and not existing.get('construction_year'):
+                                combined_buildings[i]['construction_year'] = building['construction_year']
+                            break
+            
+            logger.info(f"Added {len(calgary_3d)} buildings from Calgary 3D, total now: {len(combined_buildings)}")
+            
+            # Strategy 3: Calgary Building Footprints for additional coverage
+            if len(combined_buildings) < 20:  # Only if we need more buildings
+                logger.info("Fetching from Calgary Building Footprints...")
+                calgary_footprints = self.fetch_building_footprints(bounds, min(limit, 200))
+                
+                for building in calgary_footprints:
+                    building_id = building['building_id']
+                    if building_id not in building_ids_seen and len(combined_buildings) < limit:
+                        combined_buildings.append(building)
+                        building_ids_seen.add(building_id)
+                
+                logger.info(f"Added additional buildings from footprints, total now: {len(combined_buildings)}")
+            
+            # Strategy 4: Enhance with Calgary Zoning Data
+            logger.info("Enhancing with Calgary zoning data...")
+            try:
+                zoning_data = self.fetch_zoning_data(bounds, 1000)
+                if zoning_data:
+                    # Enhance buildings that don't have zoning with spatial zoning data
+                    for i, building in enumerate(combined_buildings):
+                        if not building.get('zoning') and building.get('latitude') and building.get('longitude'):
+                            zoning = self._find_zoning_for_point(building['latitude'], building['longitude'], zoning_data)
+                            if zoning:
+                                combined_buildings[i]['zoning'] = zoning
+                                logger.debug(f"Enhanced building {building['building_id']} with zoning: {zoning}")
+                    
+                    logger.info("Enhanced buildings with spatial zoning data")
+            except Exception as e:
+                logger.warning(f"Could not enhance with zoning data: {e}")
+            
+            # Strategy 5: Enhance with Property Assessment Data
+            logger.info("Enhancing with property assessment data...")
+            try:
+                assessment_data = self.fetch_property_assessments(bounds=bounds, limit=1000)
+                if assessment_data:
+                    # Match assessment data to buildings by address or coordinates
+                    for i, building in enumerate(combined_buildings):
+                        if not building.get('assessed_value') or not building.get('construction_year'):
+                            assessment = self._find_assessment_for_building(building, assessment_data)
+                            if assessment:
+                                if not building.get('assessed_value') and assessment.get('assessed_value'):
+                                    combined_buildings[i]['assessed_value'] = assessment['assessed_value']
+                                if not building.get('construction_year') and assessment.get('year_built'):
+                                    combined_buildings[i]['construction_year'] = assessment['year_built']
+                                logger.debug(f"Enhanced building {building['building_id']} with assessment data")
+                    
+                    logger.info("Enhanced buildings with property assessment data")
+            except Exception as e:
+                logger.warning(f"Could not enhance with assessment data: {e}")
+            
+            # Strategy 6: Enhanced sample data as final fallback
+            if len(combined_buildings) < 5:
+                logger.info("Using enhanced sample data as fallback")
+                sample_buildings = self._get_sample_data()
+                for building in sample_buildings:
+                    if len(combined_buildings) < limit:
+                        combined_buildings.append(building)
+            
+            # Sort by assessed value (descending) for better visualization
+            combined_buildings.sort(key=lambda x: x.get('assessed_value', 0), reverse=True)
+            
+            # Log final statistics
+            zoning_count = sum(1 for b in combined_buildings if b.get('zoning'))
+            construction_year_count = sum(1 for b in combined_buildings if b.get('construction_year'))
+            logger.info(f"Final combined dataset: {len(combined_buildings)} buildings")
+            logger.info(f"  - With zoning data: {zoning_count}")
+            logger.info(f"  - With construction year: {construction_year_count}")
+            
+            return combined_buildings[:limit]  # Ensure we don't exceed limit
+            
+        except Exception as e:
+            logger.error(f"Error in combined data fetch: {e}")
+            logger.info("Falling back to sample data")
             return self._get_sample_data()
     
     def _process_osm_element(self, element: Dict) -> Optional[Dict]:
@@ -297,8 +452,36 @@ class DataFetcher:
                 except:
                     pass
             
-            # Calculate centroid from geometry
+            # Extract construction year from various OSM tags
+            construction_year = None
+            year_tags = ['start_date', 'construction_start', 'year_built', 'built']
+            for tag in year_tags:
+                if tags.get(tag):
+                    construction_year = self._extract_year(tags[tag])
+                    if construction_year:
+                        break
+            
+            # Try to get zoning information from landuse or other tags
+            zoning = None
+            if 'landuse' in tags:
+                zoning = tags['landuse']
+            elif 'zoning' in tags:
+                zoning = tags['zoning']
+            elif 'amenity' in tags:
+                zoning = f"amenity:{tags['amenity']}"
+            
+            # Calculate centroid from geometry with proper coordinate handling
             lat, lng = self._calculate_osm_centroid(element.get('geometry', []))
+            
+            # Ensure coordinates are valid for Calgary area
+            if lat and lng:
+                # Validate coordinates are in Calgary area (rough bounds)
+                if not (50.8 <= lat <= 51.3 and -114.3 <= lng <= -113.8):
+                    logger.warning(f"Building coordinates outside Calgary area: {lat}, {lng}")
+                    return None
+            else:
+                logger.warning("No valid coordinates found for OSM building")
+                return None
             
             # Create address from available data
             address = self._create_osm_address(tags, lat, lng)
@@ -314,10 +497,10 @@ class DataFetcher:
                 'height': height,
                 'floors': floors,
                 'building_type': building_type_normalized,
-                'zoning': tags.get('landuse', ''),
+                'zoning': zoning,  # Will be None if not available
                 'assessed_value': assessed_value,
                 'land_use': tags.get('landuse', building_type_normalized),
-                'construction_year': self._extract_year(tags.get('start_date', '')),
+                'construction_year': construction_year,  # Will be None if not available
                 'data_source': 'openstreetmap',
                 'osm_amenity': tags.get('amenity', ''),
                 'osm_name': tags.get('name', ''),
@@ -334,36 +517,82 @@ class DataFetcher:
             # Extract ID
             building_id = (record.get('building_id') or 
                           record.get('objectid') or 
+                          record.get('id') or
                           f"calgary_{id(record)}")
             
             # Extract spatial data
-            geometry = record.get('geometry')
+            geometry = record.get('geometry') or record.get('the_geom')
             lat, lng = self._extract_calgary_coordinates(geometry)
             
-            # Extract building details
+            # Extract building details with multiple possible field names
             building_type = (record.get('building_use') or 
                            record.get('building_type') or 
+                           record.get('bldg_type') or
+                           record.get('use_type') or
+                           record.get('land_use_type') or
                            'Unknown')
             
-            height = self._safe_float(record.get('height'))
-            floors = self._safe_int(record.get('floors') or record.get('levels'))
+            height = self._safe_float(record.get('height') or 
+                                     record.get('bldg_height') or 
+                                     record.get('max_height'))
+            
+            floors = self._safe_int(record.get('floors') or 
+                                   record.get('levels') or 
+                                   record.get('num_floors') or 
+                                   record.get('storeys'))
             
             if not floors and height:
                 floors = max(1, int(height / 3.5))
             
-            # Create realistic address
+            # Create realistic address with multiple possible field names
             address = (record.get('address') or 
                       record.get('civic_address') or 
+                      record.get('full_address') or
+                      record.get('street_address') or
+                      record.get('addr_full') or
                       f"{building_id} Calgary, AB")
             
-            # Extract other attributes
-            zoning = record.get('zoning', '')
-            assessed_value = self._safe_float(record.get('assessed_value'))
-            construction_year = self._safe_int(record.get('year_built'))
+            # Extract zoning with all possible field names used by Calgary
+            zoning = (record.get('zoning') or 
+                     record.get('zone_class') or
+                     record.get('zone_code') or
+                     record.get('zoning_class') or
+                     record.get('zoning_district') or
+                     record.get('zone_category') or
+                     record.get('landuse') or
+                     record.get('land_use') or
+                     record.get('land_use_district'))
+            
+            # Extract construction year with all possible field names
+            construction_year = self._safe_int(record.get('year_built') or 
+                                              record.get('construction_year') or
+                                              record.get('year_constructed') or
+                                              record.get('built_year') or
+                                              record.get('date_built') or
+                                              record.get('year_completed'))
+            
+            # If we have a date string, extract year
+            if not construction_year:
+                for date_field in ['date_built', 'construction_date', 'completion_date']:
+                    date_val = record.get(date_field)
+                    if date_val:
+                        construction_year = self._extract_year(str(date_val))
+                        if construction_year:
+                            break
+            
+            # Extract assessed value with multiple possible field names
+            assessed_value = self._safe_float(record.get('assessed_value') or 
+                                             record.get('total_assessed_value') or
+                                             record.get('current_assessed_value') or
+                                             record.get('property_value') or
+                                             record.get('market_value'))
             
             # Estimate missing values
             if not assessed_value:
                 assessed_value = self._estimate_building_value(building_type, height, floors)
+            
+            # Log what data we found (for debugging)
+            logger.debug(f"Calgary building {building_id}: zoning='{zoning}', year={construction_year}, type='{building_type}'")
             
             return {
                 'building_id': str(building_id),
@@ -373,12 +602,13 @@ class DataFetcher:
                 'height': height,
                 'floors': floors,
                 'building_type': self._normalize_building_type(building_type),
-                'zoning': zoning,
+                'zoning': zoning,  # This will now capture more zoning data
                 'assessed_value': assessed_value,
                 'land_use': building_type,
-                'construction_year': construction_year,
+                'construction_year': construction_year,  # This will now capture more construction years
                 'data_source': source,
-                'geometry': geometry
+                'geometry': geometry,
+                'raw_record': record  # Keep full record for debugging
             }
             
         except Exception as e:
@@ -526,23 +756,7 @@ class DataFetcher:
             pass
         return None
     
-    def _process_zoning_feature(self, feature: Dict) -> Optional[Dict]:
-        """Process a GeoJSON feature from zoning dataset"""
-        try:
-            properties = feature.get('properties', {})
-            geometry = feature.get('geometry', {})
-            
-            return {
-                'zone_id': properties.get('objectid'),
-                'zone_code': properties.get('landuse', ''),
-                'zone_name': properties.get('district_name', ''),
-                'geometry': geometry,
-                'area': properties.get('area'),
-                'description': properties.get('description', '')
-            }
-        except Exception as e:
-            logger.error(f"Error processing zoning feature: {e}")
-            return None
+
     
     def _get_sample_data(self) -> List[Dict]:
         """
@@ -809,3 +1023,71 @@ class DataFetcher:
         
         logger.info(f"Using sample data: {len(sample_buildings)} buildings")
         return sample_buildings 
+
+    def _find_zoning_for_point(self, lat: float, lng: float, zoning_data: List[Dict]) -> Optional[str]:
+        """Find zoning classification for a given lat/lng point"""
+        try:
+            # Simple approach: find the closest zoning district
+            # In a full implementation, you'd do proper point-in-polygon testing
+            min_distance = float('inf')
+            closest_zoning = None
+            
+            for zone in zoning_data:
+                zone_lat = zone.get('latitude') or zone.get('lat')
+                zone_lng = zone.get('longitude') or zone.get('lng')
+                
+                if zone_lat and zone_lng:
+                    # Calculate simple distance
+                    distance = ((lat - zone_lat) ** 2 + (lng - zone_lng) ** 2) ** 0.5
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_zoning = zone.get('zone_code') or zone.get('zoning') or zone.get('district_name')
+            
+            # Only return if reasonably close (within ~0.001 degrees, roughly 100m)
+            if min_distance < 0.001 and closest_zoning:
+                return closest_zoning
+                
+        except Exception as e:
+            logger.debug(f"Error finding zoning for point: {e}")
+        
+        return None
+    
+    def _find_assessment_for_building(self, building: Dict, assessment_data: List[Dict]) -> Optional[Dict]:
+        """Find property assessment data for a building"""
+        try:
+            building_address = building.get('address', '').lower()
+            
+            # Try to match by address first
+            for assessment in assessment_data:
+                assessment_address = str(assessment.get('address', '')).lower()
+                if assessment_address and building_address:
+                    # Simple address matching - look for common parts
+                    if any(part in assessment_address for part in building_address.split() if len(part) > 2):
+                        return assessment
+            
+            # If no address match, try coordinate proximity
+            building_lat = building.get('latitude')
+            building_lng = building.get('longitude')
+            
+            if building_lat and building_lng:
+                min_distance = float('inf')
+                closest_assessment = None
+                
+                for assessment in assessment_data:
+                    assessment_lat = assessment.get('latitude') or assessment.get('lat')
+                    assessment_lng = assessment.get('longitude') or assessment.get('lng')
+                    
+                    if assessment_lat and assessment_lng:
+                        distance = ((building_lat - assessment_lat) ** 2 + (building_lng - assessment_lng) ** 2) ** 0.5
+                        if distance < min_distance:
+                            min_distance = distance
+                            closest_assessment = assessment
+                
+                # Only return if very close (within ~0.0001 degrees, roughly 10m)
+                if min_distance < 0.0001 and closest_assessment:
+                    return closest_assessment
+                    
+        except Exception as e:
+            logger.debug(f"Error finding assessment for building: {e}")
+        
+        return None 

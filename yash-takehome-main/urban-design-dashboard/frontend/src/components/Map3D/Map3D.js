@@ -155,36 +155,54 @@ function BuildingsContainer({ buildings, selectedBuilding, onBuildingClick, boun
   const buildingsData = useMemo(() => {
     if (!buildings || buildings.length === 0) return [];
     
-    // Calculate center for positioning
-    const center = bounds && bounds.length === 4 
-      ? [(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2]
-      : [buildings[0]?.latitude || 0, buildings[0]?.longitude || 0];
+    // Calculate center for positioning from actual building coordinates
+    const validBuildings = buildings.filter(b => b.latitude && b.longitude);
+    if (validBuildings.length === 0) return [];
     
-    // Use a much smaller scale factor to prevent huge distances
-    const scale = 100; // Reduced from 1000
+    // Find the actual center of the buildings
+    const avgLat = validBuildings.reduce((sum, b) => sum + b.latitude, 0) / validBuildings.length;
+    const avgLng = validBuildings.reduce((sum, b) => sum + b.longitude, 0) / validBuildings.length;
+    
+    // Calculate appropriate scale based on the spread of buildings
+    const latRange = Math.max(...validBuildings.map(b => b.latitude)) - Math.min(...validBuildings.map(b => b.latitude));
+    const lngRange = Math.max(...validBuildings.map(b => b.longitude)) - Math.min(...validBuildings.map(b => b.longitude));
+    
+    // Use a scale that ensures buildings are spread out over a reasonable area (e.g., 500 units total)
+    const targetSpread = 400; // Total area size in 3D units
+    const maxRange = Math.max(latRange, lngRange);
+    const scale = maxRange > 0 ? targetSpread / maxRange : 50000;
+    
+    console.log(`Positioning ${validBuildings.length} buildings. Center: ${avgLat.toFixed(4)}, ${avgLng.toFixed(4)}. Scale: ${scale.toFixed(0)}`);
     
     return buildings.map((building, index) => {
-      // Use building coordinates if available, otherwise use array index for basic spacing
       let position;
       
       if (building.latitude && building.longitude) {
-        position = [
-          (building.longitude - center[1]) * scale,
-          0,
-          -(building.latitude - center[0]) * scale
-        ];
+        // Use real coordinates with proper scaling
+        const x = (building.longitude - avgLng) * scale;
+        const z = -(building.latitude - avgLat) * scale; // Negative for proper orientation
+        const y = 0; // Ground level
+        
+        position = [x, y, z];
+        
+        // Debug log for first few buildings
+        if (index < 3) {
+          console.log(`Building ${index}: ${building.address} at (${building.latitude.toFixed(4)}, ${building.longitude.toFixed(4)}) -> 3D position (${x.toFixed(1)}, ${y}, ${z.toFixed(1)})`);
+        }
       } else {
-        // Fallback positioning in a grid if coordinates are missing
+        // Fallback grid positioning for buildings without coordinates
         const gridSize = Math.ceil(Math.sqrt(buildings.length));
         const row = Math.floor(index / gridSize);
         const col = index % gridSize;
-        const spacing = 20;
+        const spacing = 30;
         
         position = [
           (col - gridSize / 2) * spacing,
           0,
           (row - gridSize / 2) * spacing
         ];
+        
+        console.log(`Building ${index}: No coordinates, using grid position (${position[0]}, ${position[1]}, ${position[2]})`);
       }
       
       return {

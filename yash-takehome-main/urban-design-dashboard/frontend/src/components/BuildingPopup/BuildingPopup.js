@@ -134,23 +134,25 @@ const CoordinateText = styled.div`
 `;
 
 function BuildingPopup({ building, onClose }) {
-  const formatCurrency = (value) => {
-    if (!value) return 'N/A';
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD'
-    }).format(value);
-  };
+    const formatCurrency = (value) => {
+        if (!value) return 'Not available from data source';
+        return new Intl.NumberFormat('en-CA', {
+            style: 'currency',
+            currency: 'CAD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+        }).format(value);
+    };
 
-  const formatNumber = (value) => {
-    if (!value) return 'N/A';
-    return new Intl.NumberFormat('en-CA').format(value);
-  };
+    const formatNumber = (value) => {
+        if (!value) return 'Not specified';
+        return new Intl.NumberFormat('en-CA').format(value);
+    };
 
-  const formatHeight = (height) => {
-    if (!height) return 'N/A';
-    return `${height} ft`;
-  };
+    const formatHeight = (height) => {
+        if (!height) return 'Not specified';
+        return `${height} ${height > 50 ? 'm' : 'ft'}`;
+    };
 
   const formatCoordinates = (lat, lng) => {
     if (!lat || !lng) return 'N/A';
@@ -189,7 +191,7 @@ function BuildingPopup({ building, onClose }) {
 
           <InfoItem>
             <InfoLabel>Floors</InfoLabel>
-            <InfoValue>{building.floors || 'N/A'}</InfoValue>
+            <InfoValue>{formatNumber(building.floors)}</InfoValue>
           </InfoItem>
 
           <InfoItem>
@@ -199,23 +201,32 @@ function BuildingPopup({ building, onClose }) {
 
           <InfoItem>
             <InfoLabel>Zoning</InfoLabel>
-            <InfoValue>{building.zoning || 'N/A'}</InfoValue>
+            <InfoValue>{building.zoning || 'Not available in this area'}</InfoValue>
           </InfoItem>
 
           <InfoItem>
             <InfoLabel>Land Use</InfoLabel>
-            <InfoValue>{building.land_use || 'N/A'}</InfoValue>
+            <InfoValue>{building.land_use || 'Not specified'}</InfoValue>
           </InfoItem>
 
           <InfoItem>
             <InfoLabel>Construction Year</InfoLabel>
-            <InfoValue>{building.construction_year || 'N/A'}</InfoValue>
+            <InfoValue>{building.construction_year || 'Not available in this area'}</InfoValue>
           </InfoItem>
         </InfoGrid>
 
         <FullWidthInfo>
+          <InfoLabel>Data Source</InfoLabel>
+          <InfoValue style={{fontSize: '12px', color: '#666'}}>
+            Real Calgary data from OpenStreetMap + City Open Data
+          </InfoValue>
+        </FullWidthInfo>
+
+        <FullWidthInfo>
           <InfoLabel>Building ID</InfoLabel>
-          <InfoValue>{building.building_id || building.id}</InfoValue>
+          <InfoValue style={{fontSize: '11px', color: '#888'}}>
+            {building.building_id || building.id}
+          </InfoValue>
         </FullWidthInfo>
 
         <CoordinatesContainer>

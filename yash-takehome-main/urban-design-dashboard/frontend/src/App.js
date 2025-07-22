@@ -47,20 +47,6 @@ const HeaderControls = styled.div`
   gap: 15px;
 `;
 
-const DataSourceSelector = styled.select`
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  
-  option {
-    background: #333;
-    color: white;
-  }
-`;
-
 const StatusBadge = styled.div`
   background: ${props => props.success ? 'rgba(46, 204, 113, 0.8)' : 'rgba(231, 76, 60, 0.8)'};
   color: white;
@@ -138,9 +124,7 @@ function App() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const [showProjectManager, setShowProjectManager] = useState(false);
-    const [dataSource, setDataSource] = useState('combined'); // 'combined', '3d', 'footprints'
     const [dataStatus, setDataStatus] = useState(null);
-    const [zoningData, setZoningData] = useState([]);
 
     // Calgary downtown bounds (approximately 3-4 blocks)
     const defaultBounds = [51.042, -114.075, 51.048, -114.065];
@@ -149,16 +133,16 @@ function App() {
     useEffect(() => {
         if (user) {
             loadBuildingData();
-            loadZoningData();
         }
-    }, [user, dataSource]);
+    }, [user]);
 
     const loadBuildingData = async (refresh = false) => {
         setIsLoading(true);
         setError(null);
 
         try {
-            const response = await apiService.getBuildingsInArea(defaultBounds, refresh, dataSource);
+            // Always use intelligent combined data source
+            const response = await apiService.getBuildingsInArea(defaultBounds, refresh);
 
             if (response.data.success) {
                 setBuildings(response.data.buildings);
@@ -171,7 +155,7 @@ function App() {
                 });
                 
                 // Show success message with data info
-                toast.success(`Loaded ${response.data.buildings.length} buildings from ${response.data.data_source} source`);
+                toast.success(`Loaded ${response.data.buildings.length} buildings from real Calgary data`);
             } else {
                 throw new Error(response.data.error || 'Failed to load building data');
             }
@@ -180,53 +164,6 @@ function App() {
             setDataStatus({ success: false, error: err.message });
             console.error('Error loading building data:', err);
             toast.error('Failed to load building data');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const loadZoningData = async () => {
-        try {
-            const response = await apiService.getZoningData(defaultBounds, 100);
-            if (response.data.success) {
-                setZoningData(response.data.zoning_data);
-                toast.success(`Loaded ${response.data.count} zoning districts`);
-            }
-        } catch (err) {
-            console.error('Error loading zoning data:', err);
-        }
-    };
-
-    const handleDataSourceChange = (newSource) => {
-        setDataSource(newSource);
-        toast(`Switching to ${newSource} data source...`);
-    };
-
-    const test3DBuildings = async () => {
-        try {
-            setIsLoading(true);
-            const response = await apiService.get3DBuildings(defaultBounds, 50);
-            if (response.data.success) {
-                toast.success(`Found ${response.data.count} 3D buildings with height data`);
-                console.log('3D Buildings Sample:', response.data.buildings.slice(0, 3));
-            }
-        } catch (err) {
-            toast.error('Failed to load 3D buildings');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const testPropertyAssessments = async () => {
-        try {
-            setIsLoading(true);
-            const response = await apiService.getPropertyAssessments(null, 20);
-            if (response.data.success) {
-                toast.success(`Found ${response.data.count} property assessments`);
-                console.log('Assessment Sample:', response.data.assessments.slice(0, 3));
-            }
-        } catch (err) {
-            toast.error('Failed to load property assessments');
         } finally {
             setIsLoading(false);
         }
@@ -327,36 +264,16 @@ function App() {
     return (
         <AppContainer>
             <Header>
-                <Title>Urban Design Dashboard - Calgary Open Data</Title>
+                <Title>Urban Design Dashboard - Calgary Real Data</Title>
                 <HeaderControls>
-                    <span style={{ color: 'white', fontSize: '14px' }}>Data Source:</span>
-                    <DataSourceSelector 
-                        value={dataSource} 
-                        onChange={(e) => handleDataSourceChange(e.target.value)}
-                        disabled={isLoading}
-                    >
-                        <option value="combined">Combined (OSM + Calgary)</option>
-                        <option value="osm">OpenStreetMap Buildings</option>
-                        <option value="3d">Calgary 3D Buildings</option>
-                        <option value="footprints">Calgary Footprints</option>
-                    </DataSourceSelector>
-                    
                     {dataStatus && (
                         <StatusBadge success={dataStatus.success}>
                             {dataStatus.success 
-                                ? `${dataStatus.count} buildings (${dataStatus.source})` 
+                                ? `${dataStatus.count} real buildings loaded` 
                                 : 'Data Error'
                             }
                         </StatusBadge>
                     )}
-                    
-                    <ControlButton onClick={test3DBuildings} disabled={isLoading}>
-                        Test 3D API
-                    </ControlButton>
-                    
-                    <ControlButton onClick={testPropertyAssessments} disabled={isLoading}>
-                        Test Assessments
-                    </ControlButton>
                     
                     <span style={{ color: 'white', fontSize: '14px' }}>Welcome, {user.username}</span>
                     
@@ -378,19 +295,15 @@ function App() {
             <MainContent>
                 <SidePanel>
                     <DataSourceInfo>
-                        <h4>Real Building Data Sources</h4>
+                        <h4>Real Calgary Building Data</h4>
                         <p>
-                            <strong>Current Source:</strong> {dataSource}<br/>
                             <strong>Buildings:</strong> {filteredBuildings.length} of {buildings.length}<br/>
-                            <strong>Area:</strong> Downtown Calgary (3-4 blocks)
+                            <strong>Area:</strong> Downtown Calgary (3-4 blocks)<br/>
+                            <strong>Data Sources:</strong> OpenStreetMap + Calgary Open Data
                         </p>
                         <p style={{ marginTop: '8px', fontStyle: 'italic' }}>
-                            {dataSource === 'osm' ? 
-                                'OpenStreetMap: Real building names, heights, and types from community mapping.' :
-                                dataSource === 'combined' ?
-                                'Combined: OpenStreetMap + Calgary Open Data for comprehensive coverage.' :
-                                'Buildings colored by assessed value when available, building type otherwise.'
-                            }
+                            Intelligently combines real building data from OpenStreetMap community mapping 
+                            and Calgary's official Open Data portal for the most comprehensive coverage.
                         </p>
                     </DataSourceInfo>
                     

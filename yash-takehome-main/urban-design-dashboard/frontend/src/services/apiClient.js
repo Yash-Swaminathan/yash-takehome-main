@@ -64,9 +64,9 @@ export const apiService = {
     getUser: (userId) => apiClient.get(`/users/${userId}`),
 
     // Building data
-    getBuildingsInArea: (bounds, refresh = false, source = 'combined') => {
+    getBuildingsInArea: (bounds, refresh = false) => {
         const boundsStr = bounds.join(',');
-        return apiClient.get(`/buildings/area?bounds=${boundsStr}&refresh=${refresh}&source=${source}`);
+        return apiClient.get(`/buildings/area?bounds=${boundsStr}&refresh=${refresh}`);
     },
     getBuildingDetails: (buildingId) => apiClient.get(`/buildings/${buildingId}`),
     filterBuildings: (filters, bounds) => apiClient.post('/buildings/filter', { filters, bounds }),
